@@ -3,12 +3,12 @@ from dataclasses import dataclass
 
 @dataclass
 class CartPoleParams:
-    m_c: float = 0.5        # Масса тележки (полегче для разгона)
-    m_p: float = 0.2        # Масса маятника (потятяжелее для инерции)
-    l: float = 0.5          # Длина
+    m_c: float = 0.5
+    m_p: float = 0.2
+    l: float = 0.5
     g: float = 9.81
-    b_c: float = 0.0        # Трение тележки (0 для теста)
-    b_p: float = 0.0        # Трение маятника (0 для теста)
+    b_c: float = 0.0
+    b_p: float = 0.0
     max_force: float = 10.0
 
     @property
@@ -27,12 +27,10 @@ class CartPoleSystem:
         sin_t, cos_t = np.sin(theta), np.cos(theta)
         delta = M - m_p * cos_t**2
 
-        # Динамика (Inverted Pendulum)
-        # u > 0 (вправо) -> маятник отклоняется влево (против часовой)
-        x_ddot = (u + m_p * l * theta_dot**2 * sin_t - m_p * g * cos_t * sin_t - self.params.b_c * x_dot) / delta
+        x_ddot = (u + m_p * l * theta_dot**2 * sin_t - m_p * g * cos_t * sin_t) / delta
         
         theta_ddot = (-u * cos_t - m_p * l * theta_dot**2 * sin_t * cos_t + 
-                      M * g * sin_t + self.params.b_c * x_dot * cos_t - self.params.b_p * theta_dot) / (l * delta)
+                      M * g * sin_t) / (l * delta)
         
         return np.array([x_dot, x_ddot, theta_dot, theta_ddot])
 
@@ -47,16 +45,16 @@ class CartPoleSystem:
         return self.state.copy()
 
     def get_energy(self, state=None):
+        # ИСПРАВЛЕНИЕ: Считаем энергию маятника ОТНОСИТЕЛЬНО тележки.
+        # Скорость тележки (x_dot) не должна влиять на решение о раскачке.
         if state is None: state = self.state
         x, x_dot, theta, theta_dot = state
         m_p, l, g = self.params.m_p, self.params.l, self.params.g
         
-        # Кинетическая
-        T = 0.5 * m_p * (x_dot**2 + (l * theta_dot)**2 + 2 * l * x_dot * theta_dot * np.cos(theta))
+        # Кинетическая энергия только вращения (без учета движения тележки)
+        T_rel = 0.5 * m_p * (l * theta_dot)**2 
         
-        # Потенциальная (0 внизу, 2mgl вверху)
-        # theta=0 (верх) -> cos=1 -> V=2mgl
-        # theta=pi (низ) -> cos=-1 -> V=0
+        # Потенциальная энергия
         V = m_p * g * l * (1 + np.cos(theta)) 
         
-        return T + V
+        return T_rel + V
