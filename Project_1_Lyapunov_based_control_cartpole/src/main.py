@@ -6,6 +6,7 @@ Course: Advanced Control Methods, Skoltech 2026
 import numpy as np
 import os
 import sys
+from pathlib import Path
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
@@ -42,11 +43,9 @@ def main():
         system=system,
         Q=np.diag([1.0, 1.0, 100.0, 10.0]),
         R=1.0,
-        # Swing-up (carefully tuned gains and correct sign)
         k_energy=8.0,
         k_center=1.0,
         k_center_d=0.5,
-        # Wider hysteresis so LQR catches the pendulum reliably
         theta_enter=0.4,
         omega_enter=2.0,
         theta_exit=0.8,
@@ -99,17 +98,20 @@ def main():
     result.l = params.l
     vis = CartPoleVisualizer(result)
 
-    base_dir    = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-    figures_dir = os.path.join(base_dir, "figures")
-    os.makedirs(figures_dir, exist_ok=True)
+    PROJECT_ROOT = Path(__file__).resolve().parent.parent
+    
+    # 1. Static plots (figures folder)
+    figures_dir = PROJECT_ROOT / "figures"
+    figures_dir.mkdir(parents=True, exist_ok=True)
+    vis.plot_results(save_path=figures_dir / "results_lqr.png", show=False)
+    print(f"\n✅ Plots saved → {figures_dir / 'results_lqr.png'}")
 
-    vis.plot_results(
-        save_path=os.path.join(figures_dir, "results_lqr.png"),
-        show=False,
-    )
-    print(f"\n✅ Plots saved → {figures_dir}/results_lqr.png")
+    # 2. GIF Animation (animations folder - already exists)
+    anim_dir = PROJECT_ROOT / "animations"
+    vis.save_gif(save_path=anim_dir / "cartpole_lqr.gif", fps=30)
 
-    print("\n🎬 Starting animation (real-time)...")
+    # 3. Real-time animation (optional, shows window)
+    print("\n🎬 Starting real-time animation...")
     vis.animate_realtime(show=True, speed=1.0)
 
     print("\n✅ Done!")
