@@ -4,13 +4,13 @@
 This git is a collection of advanced control methods implemented on Python. Each project uses on a different nonlinear control strategy applied to a benchmark dynamical system.
 
 ## Repository structure
-CONTROL-SANDBOX/
-├── Project_1_Lyapunov_based_control_cartpole/
-├── Project_2_Adaptive_control_name/ 
-├── Project_3_Backstepping_name/
-├── Project_4_Model_predictive_control_name/
-├── .gitignore
-├── README.md
+CONTROL-SANDBOX/    
+├── Project_1_Lyapunov_based_control_cartpole/  
+├── Project_2_Adaptive_control_name/    
+├── Project_3_Backstepping_name/    
+├── Project_4_Model_predictive_control_name/    
+├── .gitignore  
+├── README.md   
 └── requirements.txt
 
 ## Projects overview
