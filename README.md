@@ -20,7 +20,7 @@ CONTROL-SANDBOX/
 **System:** CartPole (cart + inverted pendulum)  
 **Control method:** Sliding Mode Control (SMC) with Lyapunov function   
 **Goal:** Stabilise the pendulum in the upright unstable position and bring the cart to the origin.
-
+![alt text](Project_1_Lyapunov_based_control_cartpole/animations/cartpole_lqr.gif)
 **Run Project 1:**
 ```bash
 cd Project_1_Lyapunov_based_control_cartpole/src
