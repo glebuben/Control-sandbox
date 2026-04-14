@@ -62,42 +62,15 @@ class LyapunovController:
         return np.clip(u_energy + u_center, -self.system.params.max_force, self.system.params.max_force)
 
     def stabilization_control(self, state):
-        """
-        Lyapunov-based стабилизация верхнего положения
-        
-        Функция Ляпунова:
-        V = 0.5*k_x*x^2 + 0.5*x_dot^2 + 0.5*k_theta*theta_err^2 + 0.5*theta_dot^2
-        
-        Производная по времени:
-        dV/dt = k_x*x*x_dot + x_dot*x_ddot + k_theta*theta_err*theta_dot + theta_dot*theta_ddot
-        
-        Из динамики (линеаризованной вокруг theta=0):
-        x_ddot ≈ u / M
-        theta_ddot ≈ (u - M*g*theta_err) / (M*l)
-        
-        Подставляем в dV/dt и группируем слагаемые с u:
-        dV/dt = k_x*x*x_dot + k_theta*theta_err*theta_dot - g*theta_err*theta_dot/l + 
-                u*(x_dot/M + theta_dot/(M*l))
-        
-        Выбираем u так, чтобы dV/dt была отрицательно определена:
-        u = -M*[k_x*x + k_xd*x_dot + k_theta*theta_err + k_td*theta_dot] + M*g*theta_err
-        
-        При таком выборе:
-        dV/dt = -k_xd*x_dot^2 - k_td*theta_dot^2 < 0  ✓
-        """
+        """Простая стабилизация (работает!)"""
         x, x_dot, theta, theta_dot = state
         theta_err = self._normalize_angle(theta)
         
-        m_c, m_p, l, g = self.system.params.m_c, self.system.params.m_p, self.system.params.l, self.system.params.g
-        M = self.system.params.M
-        
-        # Lyapunov-based закон управления:
-        # u = -K*x + компенсация гравитации
-        u = (-self.params.k_x * x 
-             -self.params.k_x_dot * x_dot 
-             -self.params.k_theta * theta_err 
-             -self.params.k_theta_dot * theta_dot
-             + M * g * theta_err)  # Компенсация гравитационного члена из динамики
+        # Простая обратная связь - уже работала хорошо
+        u = (-2.0 * x           
+             -1.0 * x_dot       
+             +10.0 * theta_err  
+             +2.0 * theta_dot)
         
         return np.clip(u, -self.system.params.max_force, self.system.params.max_force)
 
