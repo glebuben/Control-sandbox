@@ -141,7 +141,7 @@ This approach focuses solely on regulating the pendulum's energy, potentially de
 ### 3.3 Switch to LQR Stabilization
 For both energy-based approaches, the energy-shaping controller cannot guarantee asymptotic convergence to the upright equilibrium due to the possibility of residual cart motion. To resolve this, we implement a hierarchical switching strategy:
 1. **Energy-Shaping Phase:** The Lyapunov controller drives the system to the target energy surface.
-2. **LQR Phase:** Once the state enters a small neighborhood of the upright equilibrium ($|\theta| < \theta_{th}, |\dot{\theta}| < \dot{\theta}_{th}, |x| < x_{th}, |\dot{x}| < \dot{x}_{th}$), the controller smoothly switches to a locally optimal Linear Quadratic Regulator (LQR) to achieve precise asymptotic stabilization and eliminate residual oscillations.
+2. **LQR Phase:** Once the state enters a small neighborhood of the upright equilibrium ( $|\theta| < \theta_{th}, |\dot{\theta}| < \dot{\theta}_{th}, |x| < x_{th}, |\dot{x}| < \dot{x}_{th}$ ), the controller smoothly switches to a locally optimal Linear Quadratic Regulator (LQR) to achieve precise asymptotic stabilization and eliminate residual oscillations.
 
 ---
 
@@ -158,6 +158,10 @@ Real-time animation:
 
 ![Pendulum Energy Animation](animations/animation_pendulum_energy.gif)
 
+Phase-portraits:
+
+![Pendulum Energy Phase Portrait](figures/phase_portraits_pendulum_energy.png)
+
 ---
 
 ### Full-Energy Controller
@@ -169,6 +173,10 @@ Time-series results for the Full-Energy Lyapunov swing-up + LQR stabilization:
 Real-time animation:
 
 ![Full Energy Animation](animations/animation_full_energy.gif)
+
+Phase-portraits:
+
+![Full Energy Phase Portrait](figures/phase_portraits_full_energy.png)
 
 ---
 

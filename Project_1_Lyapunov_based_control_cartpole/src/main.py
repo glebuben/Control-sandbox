@@ -60,7 +60,7 @@ def main():
     print("CartPole — Pendulum Energy vs Full Energy Swing-Up")
     print("=" * 60)
 
-    # ── System parameters ──
+    # ── System parameters ──────────────────────────────────────────────────
     params = CartPoleParams(
         m_c=0.5,
         m_p=0.2,
@@ -73,7 +73,7 @@ def main():
           f"l={params.l}, g={params.g}")
     print(f"E_up = {E_up:.4f} J,  max_force = {params.max_force} N")
 
-    # ── Shared settings ──
+    # ── Shared settings ────────────────────────────────────────────────────
     Q = np.diag([1.0, 1.0, 100.0, 10.0])
     R = 1.0
     config = SimulationConfig(dt=0.002, T=20.0, save_every=1)
@@ -82,7 +82,7 @@ def main():
     print(f"Initial state: θ={np.degrees(_normalize(initial_state[2])):+.1f}° "
           f"from upright")
 
-    # ── Controller A: Pendulum energy ──
+    # ── Controller A: Pendulum energy ──────────────────────────────────────
     system_a = CartPoleSystem(params)
     ctrl_a = LQRController(
         system=system_a,
@@ -97,7 +97,7 @@ def main():
     )
     result_a = run_single(system_a, ctrl_a, config, initial_state)
 
-    # ── Controller B: Full energy ──
+    # ── Controller B: Full energy ──────────────────────────────────────────
     system_b = CartPoleSystem(params)
     ctrl_b = FullEnergyLQRController(
         system=system_b,
@@ -113,32 +113,51 @@ def main():
     )
     result_b = run_single(system_b, ctrl_b, config, initial_state)
 
-    # ── Output directories ──
-    base_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-    anim_dir = os.path.join(base_dir, "animations")
+    # ── Output directories ─────────────────────────────────────────────────
+    base_dir    = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    anim_dir    = os.path.join(base_dir, "animations")
     figures_dir = os.path.join(base_dir, "figures")
     os.makedirs(figures_dir, exist_ok=True)
+    os.makedirs(anim_dir,    exist_ok=True)
 
-    # ── Individual static plots ──
-    vis_a = CartPoleVisualizer(result_a)
+    # ── Visualizers ────────────────────────────────────────────────────────
+    vis_a = CartPoleVisualizer(result_a, e_up=E_up)
+    vis_b = CartPoleVisualizer(result_b, e_up=E_up)
+
+    # ── Individual static plots ────────────────────────────────────────────
+    print("\n📊 Saving static result plots...")
+
     vis_a.plot_results(
         save_path=os.path.join(figures_dir, "results_pendulum_energy.png"),
         show=False,
     )
-    vis_b = CartPoleVisualizer(result_b)
     vis_b.plot_results(
         save_path=os.path.join(figures_dir, "results_full_energy.png"),
         show=False,
     )
 
-    # ── Side-by-side comparison ──
-    comp = ComparisonVisualizer(result_a, result_b)
+    # ── Phase portraits ────────────────────────────────────────────────────
+    print("\n🌀 Saving phase portraits...")
+
+    vis_a.plot_phase_portraits(
+        save_path=os.path.join(figures_dir, "phase_portraits_pendulum_energy.png"),
+        show=False,
+    )
+    vis_b.plot_phase_portraits(
+        save_path=os.path.join(figures_dir, "phase_portraits_full_energy.png"),
+        show=False,
+    )
+
+    # ── Side-by-side comparison ────────────────────────────────────────────
+    print("\n📊 Saving comparison plots...")
+
+    comp = ComparisonVisualizer(result_a, result_b, e_up=E_up)
     comp.plot_comparison(
         save_path=os.path.join(figures_dir, "comparison.png"),
         show=False,
     )
 
-    # ── Save GIFs ──
+    # ── Save GIFs ─────────────────────────────────────────────────────────
     print("\n💾 Saving GIF: Pendulum Energy controller...")
     vis_a.save_gif(
         save_path=os.path.join(anim_dir, "animation_pendulum_energy.gif"),
@@ -155,16 +174,70 @@ def main():
         dpi=100,
     )
 
-    print(f"\n✅ All plots and GIFs saved to {figures_dir}/")
+    print(f"\n✅ All figures saved to:   {figures_dir}/")
+    print(f"✅ All animations saved to: {anim_dir}/")
+    _print_file_summary(figures_dir, anim_dir)
 
-    # ── Live animation (optional) ──
+    # ── Live animations (optional, blocking) ──────────────────────────────
     print("\n🎬 Animating Pendulum Energy controller...")
+    print("   (close the window to continue)")
     vis_a.animate_realtime(show=True, speed=1.0)
 
     print("🎬 Animating Full Energy controller...")
+    print("   (close the window to continue)")
     vis_b.animate_realtime(show=True, speed=1.0)
 
     print("\n✅ Done!")
+
+
+def _print_file_summary(figures_dir: str, anim_dir: str) -> None:
+    """Print a neat table of every output file that was written."""
+    rows = []
+
+    expected_figures = [
+        ("results_pendulum_energy.png",       "Static plots — Pendulum Energy ctrl"),
+        ("results_full_energy.png",            "Static plots — Full Energy ctrl"),
+        ("phase_portraits_pendulum_energy.png","Phase portraits — Pendulum Energy ctrl"),
+        ("phase_portraits_full_energy.png",    "Phase portraits — Full Energy ctrl"),
+        ("comparison.png",                     "Side-by-side comparison"),
+    ]
+    expected_anims = [
+        ("animation_pendulum_energy.gif", "Animation — Pendulum Energy ctrl"),
+        ("animation_full_energy.gif",     "Animation — Full Energy ctrl"),
+    ]
+
+    for fname, desc in expected_figures:
+        fpath = os.path.join(figures_dir, fname)
+        size  = _file_size_str(fpath)
+        rows.append((desc, fpath, size))
+
+    for fname, desc in expected_anims:
+        fpath = os.path.join(anim_dir, fname)
+        size  = _file_size_str(fpath)
+        rows.append((desc, fpath, size))
+
+    col_desc = max(len(r[0]) for r in rows)
+    col_size = max(len(r[2]) for r in rows)
+
+    print()
+    print("  " + "─" * (col_desc + col_size + 6))
+    for desc, fpath, size in rows:
+        print(f"  {desc:<{col_desc}}  {size:>{col_size}}  {fpath}")
+    print("  " + "─" * (col_desc + col_size + 6))
+
+
+def _file_size_str(path: str) -> str:
+    """Return human-readable file size, or '(missing)' if not found."""
+    try:
+        b = os.path.getsize(path)
+        if b < 1024:
+            return f"{b} B"
+        elif b < 1024 ** 2:
+            return f"{b / 1024:.1f} KB"
+        else:
+            return f"{b / 1024**2:.1f} MB"
+    except FileNotFoundError:
+        return "(missing)"
 
 
 if __name__ == "__main__":

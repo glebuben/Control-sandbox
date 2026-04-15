@@ -5,6 +5,7 @@ import matplotlib.patches as patches
 import matplotlib.lines as mlines
 from matplotlib.gridspec import GridSpec
 from matplotlib.animation import FuncAnimation, PillowWriter
+from matplotlib.collections import LineCollection
 from typing import Optional
 
 
@@ -53,6 +54,40 @@ def _mode_legend_handles():
         patches.Patch(color="#fff0d9", alpha=0.8, label="Swing-up"),
         patches.Patch(color="#ddeeff", alpha=0.8, label="LQR stabilization"),
     ]
+
+
+def _make_time_colored_lc(x, y, t, cmap="plasma", lw=1.8):
+    """
+    Build a LineCollection whose segments are coloured by normalised time.
+
+    Parameters
+    ----------
+    x, y : array-like   — coordinates of the path
+    t    : array-like   — time values (same length as x, y)
+    cmap : str          — matplotlib colormap name
+    lw   : float        — line width
+
+    Returns
+    -------
+    lc   : LineCollection  — ready to add with ax.add_collection(lc)
+    norm : Normalize       — the normaliser used (for colorbar ticks)
+    """
+    x = np.asarray(x, dtype=float)
+    y = np.asarray(y, dtype=float)
+    t = np.asarray(t, dtype=float)
+
+    # Build (N-1) segments, each a pair of consecutive points
+    points  = np.stack([x, y], axis=1)          # (N, 2)
+    segs    = np.stack([points[:-1], points[1:]], axis=1)  # (N-1, 2, 2)
+
+    t_norm  = (t - t[0]) / (t[-1] - t[0] + 1e-12)
+    # Each segment gets the colour of its *start* point
+    seg_t   = t_norm[:-1]
+
+    norm = plt.Normalize(vmin=0.0, vmax=1.0)
+    lc   = LineCollection(segs, cmap=cmap, norm=norm, linewidth=lw, zorder=2)
+    lc.set_array(seg_t)
+    return lc, norm
 
 
 # ── Single-run visualizer ─────────────────────────────────────────────────────
@@ -154,6 +189,217 @@ class CartPoleVisualizer:
 
         fig.align_ylabels(axes)
         fig.tight_layout(rect=[0, 0, 1, 0.997])
+
+        if save_path:
+            fig.savefig(save_path, dpi=150, bbox_inches="tight")
+            print("Saved -> {}".format(save_path))
+        if show:
+            plt.show()
+        plt.close(fig)
+
+            # ── plot_phase_portraits ──────────────────────────────────────────────────
+
+    def plot_phase_portraits(self, save_path=None, show=True, figsize=(14, 6),
+                             cmap="plasma"):
+        """
+        Two phase portraits side-by-side:
+          Left  — pendulum:  θ ∈ [0, 2π] [rad]  vs  θ̇ [rad/s]
+                             π = upright (goal),  0/2π = hanging down
+          Right — cart:      x [m]  vs  ẋ [m/s]
+
+        The trajectory is drawn as a time-coloured line (early = dark,
+        late = bright) with a shared colourbar placed manually on the right.
+
+        Wrap-around artefact segments (the horizontal line that jumps from
+        ~2π back to ~0) are removed by masking those specific segments out
+        of the single global LineCollection, so the global colour mapping
+        is preserved perfectly.
+        """
+        r = self.result
+        t = r.times
+
+        x         = r.states[:, 0]
+        x_dot     = r.states[:, 1]
+        # θ ∈ [0, 2π]:  0 / 2π = hanging,  π = upright (goal)
+        theta     = (r.states[:, 2] + np.pi / 4) % (2 * np.pi) - np.pi / 4
+        theta_dot = r.states[:, 3]
+
+        name = getattr(r, "controller_name", "") or "Controller"
+
+        # ── Figure with manually reserved colorbar strip ──────────────────────
+        fig = plt.figure(figsize=figsize)
+        fig.suptitle(
+            "Cart-Pole  —  Phase Portraits  ({})\n"
+            "Colour encodes time  (dark → early,  bright → late)".format(name),
+            fontsize=12, fontweight="bold",
+        )
+
+        ax_pend = fig.add_axes([0.07, 0.12, 0.37, 0.76])
+        ax_cart = fig.add_axes([0.52, 0.12, 0.37, 0.76])
+        ax_cbar = fig.add_axes([0.91, 0.12, 0.02, 0.76])
+
+        # ── global LineCollection builder with optional jump masking ──────────
+        def _make_masked_lc(xdata, ydata, mask_jumps=False, jump_threshold=np.pi):
+            """
+            Build a single LineCollection for the whole trajectory so that
+            the colour mapping is globally consistent (same normalised time
+            for every segment across the entire simulation).
+
+            mask_jumps=True  → any segment whose x-displacement exceeds
+                               jump_threshold is replaced with a NaN segment
+                               so it is invisible, removing wrap artefacts
+                               without splitting into separate collections.
+            """
+            xdata = np.asarray(xdata, dtype=float)
+            ydata = np.asarray(ydata, dtype=float)
+
+            # Global time normalisation — computed once for the full array
+            t_norm = (t - t[0]) / (t[-1] - t[0] + 1e-12)
+
+            # Build (N-1) segments
+            pts  = np.stack([xdata, ydata], axis=1)          # (N, 2)
+            segs = np.stack([pts[:-1], pts[1:]], axis=1)     # (N-1, 2, 2)
+
+            if mask_jumps:
+                jumps = np.abs(np.diff(xdata)) > jump_threshold
+                # Replace jump segments with NaN so they are not rendered
+                segs[jumps] = np.nan
+
+            seg_colors = t_norm[:-1]   # colour = time at segment start
+
+            norm = plt.Normalize(vmin=0.0, vmax=1.0)
+            lc   = LineCollection(
+                segs, cmap=cmap, norm=norm, linewidth=1.8, zorder=2
+            )
+            lc.set_array(seg_colors)
+            return lc
+
+        # ── portrait drawing helper ───────────────────────────────────────────
+        def _draw_portrait(ax, xdata, ydata, xlabel, ylabel, title,
+                           mask_jumps=False,
+                           eq_lines_x=None, eq_labels_x=None,
+                           eq_lines_y=None, eq_labels_y=None):
+            """
+            Draw a time-coloured phase portrait using a single globally
+            normalised LineCollection.
+            """
+            lc = _make_masked_lc(xdata, ydata, mask_jumps=mask_jumps)
+            ax.add_collection(lc)
+
+            # Start marker
+            ax.plot(
+                xdata[0], ydata[0],
+                marker="o", color="white", markeredgecolor="black",
+                markersize=9, zorder=5, label="Start",
+            )
+            # End marker
+            ax.plot(
+                xdata[-1], ydata[-1],
+                marker="*", color="white", markeredgecolor="black",
+                markersize=12, zorder=5, label="End",
+            )
+
+            # Reference lines
+            if eq_lines_x:
+                lbls = eq_labels_x or [None] * len(eq_lines_x)
+                for xv, lbl in zip(eq_lines_x, lbls):
+                    ax.axvline(xv, color="gray", ls="--", lw=0.9,
+                               alpha=0.7, zorder=1)
+                    if lbl:
+                        ax.text(
+                            xv, 1.0, lbl,
+                            rotation=90, va="top", ha="right",
+                            fontsize=7, color="gray",
+                            transform=ax.get_xaxis_transform(),
+                        )
+            if eq_lines_y:
+                lbls = eq_labels_y or [None] * len(eq_lines_y)
+                for yv, lbl in zip(eq_lines_y, lbls):
+                    ax.axhline(yv, color="gray", ls="--", lw=0.9,
+                               alpha=0.7, zorder=1)
+                    if lbl:
+                        ax.text(
+                            1.0, yv, lbl,
+                            va="bottom", ha="right",
+                            fontsize=7, color="gray",
+                            transform=ax.get_yaxis_transform(),
+                        )
+
+            ax.set_xlabel(xlabel, fontsize=11)
+            ax.set_ylabel(ylabel, fontsize=11)
+            ax.set_title(title, fontsize=11, pad=6)
+            ax.grid(True, alpha=0.25, linewidth=0.6)
+            ax.legend(fontsize=8, loc="upper right", framealpha=0.8)
+
+            # Axis limits with explicit padding
+            x_range = xdata.max() - xdata.min()
+            y_range = ydata.max() - ydata.min()
+            x_pad   = x_range * 0.08 + 1e-6
+            y_pad   = y_range * 0.08 + 1e-6
+            ax.set_xlim(xdata.min() - x_pad, xdata.max() + x_pad)
+            ax.set_ylim(ydata.min() - y_pad, ydata.max() + y_pad)
+
+            return lc
+
+        # ── Pendulum portrait ─────────────────────────────────────────────────
+        lc_pend = _draw_portrait(
+            ax_pend,
+            theta, theta_dot,
+            xlabel=r"$\theta$  [rad]",
+            ylabel=r"$\dot{\theta}$  [rad/s]",
+            title=r"Pendulum:  $\theta$ vs $\dot{\theta}$",
+            mask_jumps=True,       # hide the 2π→0 wrap artefact segments
+            eq_lines_x=[np.pi],
+            eq_labels_x=[r" $\pi$ (upright)"],
+            eq_lines_y=[0.0],
+            eq_labels_y=[r"  $\dot\theta\!=\!0$"],
+        )
+
+        # π-based x-ticks, clipped to the visible range
+        candidate_ticks  = [0.0, np.pi / 2, np.pi, 3 * np.pi / 2, 2 * np.pi]
+        candidate_labels = [r"$0$", r"$\frac{\pi}{2}$", r"$\pi$",
+                            r"$\frac{3\pi}{2}$", r"$2\pi$"]
+        xlim = ax_pend.get_xlim()
+        visible = [
+            (tick, lbl)
+            for tick, lbl in zip(candidate_ticks, candidate_labels)
+            if xlim[0] <= tick <= xlim[1]
+        ]
+        if visible:
+            ticks, labels = zip(*visible)
+            ax_pend.set_xticks(list(ticks))
+            ax_pend.set_xticklabels(list(labels), fontsize=9)
+
+        # ── Cart portrait ─────────────────────────────────────────────────────
+        lc_cart = _draw_portrait(
+            ax_cart,
+            x, x_dot,
+            xlabel=r"$x$  [m]",
+            ylabel=r"$\dot{x}$  [m/s]",
+            title=r"Cart:  $x$ vs $\dot{x}$",
+            mask_jumps=False,
+            eq_lines_x=[0.0],
+            eq_labels_x=[r" $x\!=\!0$"],
+            eq_lines_y=[0.0],
+            eq_labels_y=[r"  $\dot x\!=\!0$"],
+        )
+
+        # ── Shared colourbar in its own manually placed axes ──────────────────
+        cbar_source = lc_cart or lc_pend
+        if cbar_source is not None:
+            cbar = fig.colorbar(cbar_source, cax=ax_cbar)
+            cbar.set_label("Normalised time", fontsize=9, labelpad=8)
+            cbar.set_ticks([0.0, 0.25, 0.5, 0.75, 1.0])
+            cbar.set_ticklabels(
+                [
+                    "0  (t={:.1f} s)".format(t[0]),
+                    "25 %",
+                    "50 %",
+                    "75 %",
+                    "100 % (t={:.1f} s)".format(t[-1]),
+                ],
+                fontsize=7,
+            )
 
         if save_path:
             fig.savefig(save_path, dpi=150, bbox_inches="tight")
