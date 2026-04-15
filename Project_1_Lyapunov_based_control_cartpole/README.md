@@ -54,6 +54,7 @@ The Cart-Pole system consists of a cart of mass $m_c$ moving along the horizonta
 - $a(t)$: Horizontal control force applied to the cart
 
 **Control-Bounded Formulation:** This problem is explicitly treated as a control-bounded system, where the actuator force is physically limited:
+
 $$|a(t)| \leq a_{\mathrm{max}}$$
 
 The equations of motion are derived using Lagrangian mechanics. For the complete step-by-step symbolic derivation (kinetic/potential energy, Euler-Lagrange equations, and acceleration solving), refer to [`system_analysis.ipynb`](system_analysis.ipynb). The final dynamic equations are:
@@ -77,16 +78,16 @@ $$
 
 ### Uncontrolled System ($a = 0$)
 By substituting the uncontrolled equations of motion into $\dot{E}_{\mathrm{total}}$, we rigorously prove that:
-$$
-\dot{E}_{\mathrm{total}}\big|_{a=0} = 0
-$$
+
+$$\dot{E}_{\mathrm{total}}\big|_{a=0} = 0$$
+
 This confirms that the unforced system is conservative and marginally stable: energy is strictly conserved, and trajectories remain on constant-energy manifolds without any natural convergence to equilibrium.
 
 ### Controlled System
 When control is applied, the time derivative of the total energy simplifies to the power balance identity:
-$$
-\dot{E}_{\mathrm{total}} = a \dot{x}
-$$
+
+$$\dot{E}_{\mathrm{total}} = a \dot{x}$$
+
 This fundamental relation shows that the control input acts directly as a power source/sink for the system. By appropriately choosing the sign and magnitude of $a$, we can intentionally inject or dissipate energy to drive the system toward the desired energy level.
 
 ---
@@ -95,38 +96,46 @@ This fundamental relation shows that the control input acts directly as a power 
 
 ### 3.1 Full-Energy Lyapunov Control
 We define the energy error as $\tilde{E} = E_{\mathrm{total}} - E_{\mathrm{des}}$, where $E_{\mathrm{des}}$ is the target energy at the upright equilibrium. We choose the Lyapunov function candidate:
+
 $$
 V_L = \frac{1}{2} \tilde{E}^2 = \frac{1}{2}(E_{\mathrm{total}} - E_{\mathrm{des}})^2
 $$
 
 Taking the time derivative and substituting $\dot{E}_{\mathrm{total}} = a \dot{x}$:
+
 $$
 \dot{V}_L = \tilde{E} a \dot{x}
 $$
 
 To ensure $\dot{V}_L \leq 0$, we select the control law:
+
 $$
 a = -k_E \tilde{E} \dot{x}, \quad k_E > 0
 $$
 
 Substituting this yields:
+
 $$
 \dot{V}_L = -k_E \tilde{E}^2 \dot{x}^2 \leq 0
 $$
 
 **Saturation Robustness:** In practice, actuators are bounded ($|a| \leq a_{\max}$). The saturated control is $a_{\mathrm{sat}} = \mathrm{clip}(-k_E \tilde{E} \dot{x}, -a_{\max}, a_{\max})$. Since saturation only reduces the magnitude but **preserves the sign** of the ideal control input, we have $\mathrm{sign}(a_{\mathrm{sat}}) = -\mathrm{sign}(\tilde{E} \dot{x})$. Therefore:
+
 $$
 \dot{V}_L = \tilde{E} a_{\mathrm{sat}} \dot{x} \leq 0 \quad \mathrm{unconditionally}
 $$
+
 This makes the controller fundamentally robust to actuator saturation without requiring additional anti-windup or compensation terms.
 
 **Convergence Limitation:** While energy convergence $E_{\mathrm{total}} \to E_{\mathrm{des}}$ guarantees the system reaches the target energy surface, it does not strictly guarantee convergence to the exact upright position $(x=0, \theta=0, \dot{x}=0, \dot{\theta}=0)$. Even at $E = E_{\mathrm{des}}$, the system may settle into an oscillatory state where residual energy is stored as cart kinetic energy ($\dot{x} \neq 0$). Therefore, energy shaping alone is insufficient for asymptotic stabilization. Moreover, as it shown in [`system_analysis.ipynb`](system_analysis.ipynb) full energy may be equal to the desired one, while angle $\theta$ will not tend to the small neighbourhood of upright position ($\theta=0$). General proposition for this controller is to use it only when initially cart has a zero velocity ($\dot x =0$)
 
 ### 3.2 Pendulum-Energy Lyapunov Control (Future Work)
 Therefore, an another solution was also proposed. As an alternative, we are investigating a pendulum-only energy Lyapunov function:
+
 $$
 V_P = \frac{1}{2}(E_{\mathrm{pendulum}} - E_{\mathrm{des}})^2
 $$
+
 This approach focuses solely on regulating the pendulum's energy, potentially decoupling the swing-up dynamics from the cart. Preliminary analysis indicates that this formulation introduces stricter analytical limitations on control bounds, which must be derived and validated. Implementation details and bound constraints will be provided in future updates.
 
 ### 3.3 Switch to LQR Stabilization
