@@ -30,8 +30,7 @@ Project_1_Lyapunov_based_control_cartpole/
 │ ├── visualization.py # visualization and animation   
 │ └── main.py # initial start file   
 ├── configs/ # config files     
-├── figures/ # graphics   
-├── notebooks/ # additional research and analysis  
+├── figures/ # graphics     
 ├── animations/ # video animation        
 └── README.md       
 
