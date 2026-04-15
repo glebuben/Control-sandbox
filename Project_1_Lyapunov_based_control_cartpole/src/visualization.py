@@ -4,6 +4,7 @@ import matplotlib.pyplot as plt
 import matplotlib.patches as patches
 import matplotlib.lines as mlines
 from matplotlib.gridspec import GridSpec
+from matplotlib.animation import FuncAnimation, PillowWriter
 from typing import Optional
 
 
@@ -161,14 +162,12 @@ class CartPoleVisualizer:
             plt.show()
         plt.close(fig)
 
-    # ── animate_realtime ──────────────────────────────────────────────────────
+    # ── _build_animation_fig ──────────────────────────────────────────────────
 
-    def animate_realtime(self, show=True, speed=1.0, track_half=2.5, figsize=(11, 5)):
+    def _build_animation_fig(self, speed=1.0, track_half=2.5, figsize=(11, 5), skip=None):
         """
-        Real-time cart-pole animation with track, wheels, energy bar.
-
-        Uses matplotlib.patches.Rectangle (not FancyBboxPatch)
-        because Rectangle supports set_xy() for position updates.
+        Build figure, patches, and update function for the cart-pole animation.
+        Returns (fig, update_fn, frame_indices, interval_ms).
         """
         r    = self.result
         l    = getattr(r, "l", 0.5)
@@ -176,7 +175,11 @@ class CartPoleVisualizer:
         dt_data = float(r.times[1] - r.times[0]) if len(r.times) > 1 else 0.002
 
         target_fps = 30.0
-        skip = max(1, round(speed / (target_fps * dt_data)))
+        if skip is None:
+            skip = max(1, round(speed / (target_fps * dt_data)))
+
+        frame_indices = list(range(0, len(r.times), skip))
+        interval_ms = max(1, int(dt_data * skip / speed * 1000))
 
         # ── Figure layout ──────────────────────────────────────────────
         fig = plt.figure(figsize=figsize)
@@ -197,21 +200,18 @@ class CartPoleVisualizer:
         ax_main.set_title("{} - Cart-Pole".format(name), fontsize=11, pad=4)
 
         # ── Static scenery ─────────────────────────────────────────────
-        # Ground line
         ax_main.axhline(-0.18, color="#555555", lw=1.5, zorder=1)
-        # Rail
         ax_main.plot(
             [-track_half, track_half], [0, 0],
             color="#888888", lw=5, solid_capstyle="round", zorder=2,
         )
-        # Rail end stops
         for xend in [-track_half, track_half]:
             ax_main.plot(
                 [xend, xend], [0, 0.08],
                 color="#555555", lw=4, solid_capstyle="round", zorder=2,
             )
 
-        # ── Cart body (Rectangle, supports set_xy) ────────────────────
+        # ── Cart body ────────────────────────────────────────────────
         cart_w, cart_h = 0.38, 0.20
         wheel_r = 0.07
         wheel_y = -wheel_r
@@ -222,11 +222,6 @@ class CartPoleVisualizer:
         )
         ax_main.add_patch(cart_body)
 
-        # Rounded corner overlay (cosmetic, drawn once per frame via set_xy)
-        # We use Rectangle for reliable set_xy; the slight lack of rounding
-        # is an acceptable trade-off for animation stability.
-
-        # Wheels
         wheel_offsets = [-cart_w * 0.28, cart_w * 0.28]
         wheel_patches_list = []
         for wx in wheel_offsets:
@@ -239,20 +234,11 @@ class CartPoleVisualizer:
 
         # ── Pendulum ──────────────────────────────────────────────────
         pivot_y = cart_h / 2
-        pivot_dot, = ax_main.plot(
-            [0], [pivot_y],
-            "o", color="#1a4f78", ms=6, zorder=7,
-        )
-        rod_line, = ax_main.plot(
-            [], [], "-",
-            color="#c0392b", lw=3.5, solid_capstyle="round", zorder=7,
-        )
-        bob_dot, = ax_main.plot(
-            [], [], "o",
-            color="#e74c3c", ms=12, zorder=8,
-        )
+        pivot_dot, = ax_main.plot([0], [pivot_y], "o", color="#1a4f78", ms=6, zorder=7)
+        rod_line,  = ax_main.plot([], [], "-", color="#c0392b", lw=3.5,
+                                  solid_capstyle="round", zorder=7)
+        bob_dot,   = ax_main.plot([], [], "o", color="#e74c3c", ms=12, zorder=8)
 
-        # ── Text overlays ─────────────────────────────────────────────
         txt_kw = dict(transform=ax_main.transAxes, fontsize=9, va="top")
         txt_time = ax_main.text(0.02, 0.97, "", **txt_kw)
         txt_mode = ax_main.text(0.02, 0.91, "", **txt_kw)
@@ -275,12 +261,10 @@ class CartPoleVisualizer:
         )
         ax_bar.add_patch(bar_fill)
         bar_target = ax_bar.axvline(
-            0.05 + 0.90,
-            color="#e74c3c", lw=1.5, ls="--", zorder=3,
+            0.05 + 0.90, color="#e74c3c", lw=1.5, ls="--", zorder=3,
         )
         txt_bar = ax_bar.text(
-            0.5, 0.0, "",
-            ha="center", va="bottom", fontsize=7,
+            0.5, 0.0, "", ha="center", va="bottom", fontsize=7,
             transform=ax_bar.transAxes,
         )
 
@@ -298,58 +282,70 @@ class CartPoleVisualizer:
             "stabilization": "#27ae60",
         }
 
-        # ── Animation loop ────────────────────────────────────────────
+        def update(frame_idx):
+            i     = frame_idx
+            x     = r.states[i, 0]
+            theta = r.states[i, 2]
+            mode  = r.modes[i] if i < len(r.modes) else "swing_up"
+
+            px = x + l * np.sin(theta)
+            py = pivot_y + l * np.cos(theta)
+
+            cart_body.set_xy((x - cart_w / 2, 0.0))
+            cart_body.set_facecolor(mode_colors.get(mode, "#2c7bb6"))
+
+            for k, wx in enumerate(wheel_offsets):
+                wheel_patches_list[k].center = (x + wx, wheel_y)
+
+            pivot_dot.set_data([x], [pivot_y])
+            rod_line.set_data([x, px], [pivot_y, py])
+            bob_dot.set_data([px], [py])
+
+            txt_time.set_text("t = {:.2f} s".format(r.times[i]))
+            txt_mode.set_text("mode: {}".format(mode))
+            txt_mode.set_color(mode_colors.get(mode, "black"))
+            theta_d = float(np.degrees(_normalize(theta)))
+            txt_vals.set_text(
+                "x = {:+.3f} m     theta = {:+.1f} deg".format(x, theta_d)
+            )
+
+            e_now = r.energies[i] if i < len(r.energies) else 0.0
+            w_fill = max(0.0, _e_to_bar(e_now) - 0.05)
+            bar_fill.set_width(w_fill)
+            bar_fill.set_facecolor(
+                "#27ae60" if abs(e_now - self.e_up) < 0.05 * self.e_up
+                else "#8e44ad"
+            )
+            txt_bar.set_text(
+                "E = {:.4f} J   E_up = {:.4f} J".format(e_now, self.e_up)
+            )
+
+            return (cart_body, *wheel_patches_list, pivot_dot,
+                    rod_line, bob_dot, txt_time, txt_mode, txt_vals,
+                    bar_fill, txt_bar)
+
+        return fig, update, frame_indices, interval_ms
+
+    # ── animate_realtime ──────────────────────────────────────────────────────
+
+    def animate_realtime(self, show=True, speed=1.0, track_half=2.5, figsize=(11, 5)):
+        """Real-time cart-pole animation with track, wheels, energy bar."""
+        r = self.result
+        dt_data = float(r.times[1] - r.times[0]) if len(r.times) > 1 else 0.002
+        target_fps = 30.0
+        skip = max(1, round(speed / (target_fps * dt_data)))
+
+        fig, update, frame_indices, interval_ms = self._build_animation_fig(
+            speed=speed, track_half=track_half, figsize=figsize, skip=skip
+        )
+
         plt.ion()
         try:
-            for i in range(0, len(r.times), skip):
-                x     = r.states[i, 0]
-                theta = r.states[i, 2]
-                mode  = r.modes[i] if i < len(r.modes) else "swing_up"
-
-                # Pendulum tip
-                px = x + l * np.sin(theta)
-                py = pivot_y + l * np.cos(theta)
-
-                # Update cart position — Rectangle.set_xy works fine
-                cart_body.set_xy((x - cart_w / 2, 0.0))
-                cart_body.set_facecolor(mode_colors.get(mode, "#2c7bb6"))
-
-                # Update wheels
-                for k, wx in enumerate(wheel_offsets):
-                    wheel_patches_list[k].center = (x + wx, wheel_y)
-
-                # Pivot
-                pivot_dot.set_data([x], [pivot_y])
-
-                # Rod & bob
-                rod_line.set_data([x, px], [pivot_y, py])
-                bob_dot.set_data([px], [py])
-
-                # Text
-                txt_time.set_text("t = {:.2f} s".format(r.times[i]))
-                txt_mode.set_text("mode: {}".format(mode))
-                txt_mode.set_color(mode_colors.get(mode, "black"))
-                theta_d = float(np.degrees(_normalize(theta)))
-                txt_vals.set_text(
-                    "x = {:+.3f} m     theta = {:+.1f} deg".format(x, theta_d)
-                )
-
-                # Energy bar
-                e_now = r.energies[i] if i < len(r.energies) else 0.0
-                w_fill = max(0.0, _e_to_bar(e_now) - 0.05)
-                bar_fill.set_width(w_fill)
-                bar_fill.set_facecolor(
-                    "#27ae60" if abs(e_now - self.e_up) < 0.05 * self.e_up
-                    else "#8e44ad"
-                )
-                txt_bar.set_text(
-                    "E = {:.4f} J   E_up = {:.4f} J".format(e_now, self.e_up)
-                )
-
+            for i in frame_indices:
+                update(i)
                 fig.canvas.draw_idle()
                 fig.canvas.flush_events()
-                plt.pause(max(0.001, dt_data * skip / speed))
-
+                plt.pause(interval_ms / 1000.0)
         except KeyboardInterrupt:
             pass
 
@@ -357,6 +353,59 @@ class CartPoleVisualizer:
         if show:
             plt.show()
         plt.close(fig)
+
+    # ── save_gif ──────────────────────────────────────────────────────────────
+
+    def save_gif(
+        self,
+        save_path,
+        speed=1.0,
+        track_half=2.5,
+        figsize=(11, 5),
+        fps=30,
+        dpi=100,
+    ):
+        """
+        Save the cart-pole animation as a GIF.
+
+        Parameters
+        ----------
+        save_path : str
+            Output path, e.g. "figures/pendulum_energy.gif"
+        speed : float
+            Playback speed multiplier (>1 = faster).
+        track_half : float
+            Half-width of the visible track in metres.
+        figsize : tuple
+            Matplotlib figure size.
+        fps : int
+            Frames per second in the output GIF.
+        dpi : int
+            Resolution of each frame.
+        """
+        r = self.result
+        dt_data = float(r.times[1] - r.times[0]) if len(r.times) > 1 else 0.002
+        skip = max(1, round(speed / (fps * dt_data)))
+
+        fig, update, frame_indices, _ = self._build_animation_fig(
+            speed=speed, track_half=track_half, figsize=figsize, skip=skip
+        )
+
+        n = len(frame_indices)
+        print("Saving GIF: {} frames → {}".format(n, save_path))
+
+        anim = FuncAnimation(
+            fig,
+            update,
+            frames=frame_indices,
+            interval=int(1000 / fps),
+            blit=False,
+        )
+
+        writer = PillowWriter(fps=fps)
+        anim.save(save_path, writer=writer, dpi=dpi)
+        plt.close(fig)
+        print("Saved -> {}".format(save_path))
 
 
 # ── Comparison visualizer ─────────────────────────────────────────────────────

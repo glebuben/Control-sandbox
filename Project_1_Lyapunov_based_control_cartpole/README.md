@@ -139,17 +139,49 @@ For both energy-based approaches, the energy-shaping controller cannot guarantee
 ---
 
 ## 4. Results
-### What we achieved    
-All simulation outputs, phase portraits, energy convergence plots, and animations are automatically generated via [`visualization.py`](src/visualization.py). The implementation successfully demonstrates:
-- ✅ Successful energy-based swing-up from the downward position.
-- ✅ Monotonic decay of the Lyapunov function $V_L$ over time.
-- ✅ Smooth transition to LQR stabilization near the upright position.
-- ✅ Robust performance under strict actuator saturation limits.
-
-Generated outputs are saved to:
-- 📊 `figures/` — Static plots (time series, phase portraits, energy/Lyapunov evolution)
-- 🎬 `animations/` — Real-time simulation GIFs/MP4s
 
 
+### Pendulum-Energy Controller
+
+Time-series results for the Pendulum-Energy Lyapunov swing-up + LQR stabilization:
+
+![Pendulum Energy Results](figures/results_pendulum_energy.png)
+
+Real-time animation:
+
+![Pendulum Energy Animation](animations/animation_pendulum_energy.gif)
 
 ---
+
+### Full-Energy Controller
+
+Time-series results for the Full-Energy Lyapunov swing-up + LQR stabilization:
+
+![Full Energy Results](figures/results_full_energy.png)
+
+Real-time animation:
+
+![Full Energy Animation](animations/animation_full_energy.gif)
+
+---
+
+### Side-by-Side Comparison
+
+Direct comparison of both controllers across all state variables, control effort, energy convergence, and Lyapunov evolution:
+
+![Controller Comparison](figures/comparison.png)
+
+## Discussion
+We compared two energy-based control strategies: the full-energy Lyapunov controller and the pendulum-energy Lyapunov controller. Both approaches successfully achieved swing-up and stabilization for the tested initial conditions, but they exhibit distinct characteristics and limitations.
+
+The full-energy controller demonstrates faster convergence to the desired energy level. However, its performance is sensitive to the initial cart velocity. In particular, when the cart starts with nonzero velocity, part of the system energy may remain in the cart’s translational motion, preventing reliable convergence of the pendulum to the upright position. For this reason, the controller is most effective when the initial cart velocity is zero or close to zero.
+
+To address this limitation, we propose the following control sequence:
+
+1. Drive the system energy toward zero to damp out cart motion
+2. Increase the energy from zero to the desired level ($E_{\text{total}} = 2m_p g l$)
+3. Switch to a local stabilizing controller (e.g., LQR or PD) near the upright equilibrium
+
+Although this additional phase may slow down the overall response, it improves robustness with respect to initial conditions. Notably, the full-energy controller remains theoretically applicable under arbitrary control bounds.
+
+In contrast, the pendulum-energy controller provides more consistent behavior across a wider range of initial conditions, as it directly regulates the pendulum dynamics rather than the total system energy. This reduces the risk of undesired energy distribution between the cart and pendulum. However, this approach introduces stricter constraints related to the bounded control input ($|a| \leq \bar{a}$), which must be carefully analyzed to ensure feasibility.

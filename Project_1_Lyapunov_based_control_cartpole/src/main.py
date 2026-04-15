@@ -1,4 +1,3 @@
-# main.py
 #!/usr/bin/env python3
 """
 CartPole — Compare Pendulum-Energy vs Full-Energy Swing-Up Controllers
@@ -114,12 +113,13 @@ def main():
     )
     result_b = run_single(system_b, ctrl_b, config, initial_state)
 
-    # ── Save figures ──
+    # ── Output directories ──
     base_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    anim_dir = os.path.join(base_dir, "animations")
     figures_dir = os.path.join(base_dir, "figures")
     os.makedirs(figures_dir, exist_ok=True)
 
-    # Individual plots
+    # ── Individual static plots ──
     vis_a = CartPoleVisualizer(result_a)
     vis_a.plot_results(
         save_path=os.path.join(figures_dir, "results_pendulum_energy.png"),
@@ -131,16 +131,33 @@ def main():
         show=False,
     )
 
-    # Side-by-side comparison
+    # ── Side-by-side comparison ──
     comp = ComparisonVisualizer(result_a, result_b)
     comp.plot_comparison(
         save_path=os.path.join(figures_dir, "comparison.png"),
         show=False,
     )
 
-    print(f"\n✅ All plots saved to {figures_dir}/")
+    # ── Save GIFs ──
+    print("\n💾 Saving GIF: Pendulum Energy controller...")
+    vis_a.save_gif(
+        save_path=os.path.join(anim_dir, "animation_pendulum_energy.gif"),
+        speed=1.0,
+        fps=30,
+        dpi=100,
+    )
 
-    # ── Animate (optional) ──
+    print("💾 Saving GIF: Full Energy controller...")
+    vis_b.save_gif(
+        save_path=os.path.join(anim_dir, "animation_full_energy.gif"),
+        speed=1.0,
+        fps=30,
+        dpi=100,
+    )
+
+    print(f"\n✅ All plots and GIFs saved to {figures_dir}/")
+
+    # ── Live animation (optional) ──
     print("\n🎬 Animating Pendulum Energy controller...")
     vis_a.animate_realtime(show=True, speed=1.0)
 
