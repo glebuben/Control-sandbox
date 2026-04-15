@@ -105,7 +105,13 @@ def main():
     figures_dir.mkdir(parents=True, exist_ok=True)
     vis.plot_results(save_path=figures_dir / "results_lqr.png", show=False)
     print(f"\n✅ Plots saved → {figures_dir / 'results_lqr.png'}")
-
+    # 3. Phase Portraits
+    vis.plot_phase_portraits(
+        save_path=figures_dir / "phase_portraits.png",
+        show=False,
+    )
+    print(f"✅ Phase portraits saved → {figures_dir / 'phase_portraits.png'}")
+    
     # 2. GIF Animation (animations folder - already exists)
     anim_dir = PROJECT_ROOT / "animations"
     vis.save_gif(save_path=anim_dir / "cartpole_lqr.gif", fps=30)
