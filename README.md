@@ -1,16 +1,15 @@
-# Control-sandbox
 # CONTROL-SANDBOX
 
 This git is a collection of advanced control methods implemented on Python. Each project uses on a different nonlinear control strategy applied to a benchmark dynamical system.
 
 ## Repository structure
-CONTROL-SANDBOX/
-├── Project_1_Lyapunov_based_control_cartpole/
-├── Project_2_Adaptive_control_name/ 
-├── Project_3_Backstepping_name/
-├── Project_4_Model_predictive_control_name/
-├── .gitignore
-├── README.md
+CONTROL-SANDBOX/    
+├── Project_1_Lyapunov_based_control_cartpole/  
+├── Project_2_Adaptive_control_name/    
+├── Project_3_Backstepping_name/    
+├── Project_4_Model_predictive_control_name/    
+├── .gitignore  
+├── README.md   
 └── requirements.txt
 
 ## Projects overview
@@ -20,7 +19,7 @@ CONTROL-SANDBOX/
 **System:** CartPole (cart + inverted pendulum)  
 **Control method:** Sliding Mode Control (SMC) with Lyapunov function   
 **Goal:** Stabilise the pendulum in the upright unstable position and bring the cart to the origin.
-
+![alt text](Project_1_Lyapunov_based_control_cartpole/animations/cartpole_lqr.gif)
 **Run Project 1:**
 ```bash
 cd Project_1_Lyapunov_based_control_cartpole/src

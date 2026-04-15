@@ -6,6 +6,7 @@ CartPole — Compare Pendulum-Energy vs Full-Energy Swing-Up Controllers
 import numpy as np
 import os
 import sys
+from pathlib import Path
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
@@ -73,6 +74,7 @@ def main():
           f"l={params.l}, g={params.g}")
     print(f"E_up = {E_up:.4f} J,  max_force = {params.max_force} N")
 
+<<<<<<< HEAD
     # ── Shared settings ──
     Q = np.diag([1.0, 1.0, 100.0, 10.0])
     R = 1.0
@@ -87,6 +89,13 @@ def main():
     ctrl_a = LQRController(
         system=system_a,
         Q=Q, R=R,
+=======
+    # ---- Controller ----
+    controller = LQRController(
+        system=system,
+        Q=np.diag([1.0, 1.0, 100.0, 10.0]),
+        R=1.0,
+>>>>>>> main
         k_energy=8.0,
         k_center=1.0,
         k_center_d=0.5,
@@ -113,6 +122,7 @@ def main():
     )
     result_b = run_single(system_b, ctrl_b, config, initial_state)
 
+<<<<<<< HEAD
     # ── Save figures ──
     base_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
     figures_dir = os.path.join(base_dir, "figures")
@@ -145,6 +155,61 @@ def main():
 
     print("🎬 Animating Full Energy controller...")
     vis_b.animate_realtime(show=True, speed=1.0)
+=======
+    initial_state = np.array([0.0, 0.0, np.pi + 0.1, 0.0])
+    print(f"\n📍 Initial state: x=0.0 m, "
+          f"θ={np.degrees(_normalize(initial_state[2])):+.1f}° from upright")
+
+    print("\n🚀 Running simulation...")
+    sim = CartPoleSimulation(system, controller, config)
+    result = sim.run(initial_state, verbose=True)
+
+    # ---- Statistics ----
+    print("\n" + "=" * 60)
+    print("📊 STATISTICS")
+    print("=" * 60)
+    theta_f     = result.states[-1, 2]
+    theta_f_deg = np.degrees(_normalize(theta_f))
+    x_f         = result.states[-1, 0]
+
+    print(f"Energy  — initial: {result.energies[0]:.4f} J  |  "
+          f"final: {result.energies[-1]:.4f} J  |  target: {E_up:.4f} J")
+    print(f"Lyapunov — initial: {result.lyapunov_values[0]:.4f}  |  "
+          f"final: {result.lyapunov_values[-1]:.6f}")
+    print(f"Final state — x={x_f:+.4f} m,  θ={theta_f_deg:+.2f}°")
+
+    n_stab  = sum(1 for m in result.modes if m == "stabilization")
+    n_swing = sum(1 for m in result.modes if m == "swing_up")
+    total   = len(result.modes)
+    print(f"Modes — swing: {n_swing} ({100*n_swing/total:.0f}%),  "
+          f"stab: {n_stab} ({100*n_stab/total:.0f}%)")
+
+    if abs(theta_f_deg) < 5.0:
+        print("\n🎉 SUCCESS — stabilized within 5° of upright!")
+    else:
+        print(f"\n⚠️  Not stabilized (θ = {theta_f_deg:+.1f}°). "
+              f"Try increasing k_energy or widening theta_enter.")
+
+    # ---- Visualise ----
+    result.l = params.l
+    vis = CartPoleVisualizer(result)
+
+    PROJECT_ROOT = Path(__file__).resolve().parent.parent
+    
+    # 1. Static plots (figures folder)
+    figures_dir = PROJECT_ROOT / "figures"
+    figures_dir.mkdir(parents=True, exist_ok=True)
+    vis.plot_results(save_path=figures_dir / "results_lqr.png", show=False)
+    print(f"\n✅ Plots saved → {figures_dir / 'results_lqr.png'}")
+
+    # 2. GIF Animation (animations folder - already exists)
+    anim_dir = PROJECT_ROOT / "animations"
+    vis.save_gif(save_path=anim_dir / "cartpole_lqr.gif", fps=30)
+
+    # 3. Real-time animation (optional, shows window)
+    print("\n🎬 Starting real-time animation...")
+    vis.animate_realtime(show=True, speed=1.0)
+>>>>>>> main
 
     print("\n✅ Done!")
 
