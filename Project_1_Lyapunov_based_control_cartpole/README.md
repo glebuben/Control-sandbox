@@ -122,10 +122,10 @@ $$
 $$
 This makes the controller fundamentally robust to actuator saturation without requiring additional anti-windup or compensation terms.
 
-**Convergence Limitation:** While energy convergence $E_{\text{total}} \to E_{\text{des}}$ guarantees the system reaches the target energy surface, it does not strictly guarantee convergence to the exact upright position $(x=0, \theta=0, \dot{x}=0, \dot{\theta}=0)$. Even at $E = E_{\text{des}}$, the system may settle into an oscillatory state where residual energy is stored as cart kinetic energy ($\dot{x} \neq 0$). Therefore, energy shaping alone is insufficient for asymptotic stabilization.
+**Convergence Limitation:** While energy convergence $E_{\text{total}} \to E_{\text{des}}$ guarantees the system reaches the target energy surface, it does not strictly guarantee convergence to the exact upright position $(x=0, \theta=0, \dot{x}=0, \dot{\theta}=0)$. Even at $E = E_{\text{des}}$, the system may settle into an oscillatory state where residual energy is stored as cart kinetic energy ($\dot{x} \neq 0$). Therefore, energy shaping alone is insufficient for asymptotic stabilization. Moreover, as it shown in [`system_analysis.ipynb`](system_analysis.ipynb) full energy may be equal to the desired one, while angle $\theta$ will not tend to the small neighbourhood of upright position ($\theta=0$). General proposition for this controller is to use it only when initially cart has a zero velocity ($\dot x =0$)
 
 ### 3.2 Pendulum-Energy Lyapunov Control (Future Work)
-As an alternative, we are investigating a pendulum-only energy Lyapunov function:
+Therefore, an another solution was also proposed. As an alternative, we are investigating a pendulum-only energy Lyapunov function:
 $$
 V_P = \frac{1}{2}(E_{\text{pendulum}} - E_{\text{des}})^2
 $$
