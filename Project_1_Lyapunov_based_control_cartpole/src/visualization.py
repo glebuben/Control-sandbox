@@ -106,6 +106,86 @@ class CartPoleVisualizer:
         return fig
 
     # ------------------------------------------------------------------ #
+    #  Phase Portraits                                                     #
+    # ------------------------------------------------------------------ #
+
+    def plot_phase_portraits(self, save_path: str = None, show: bool = True):
+        """
+        Plot phase portraits: (θ, θ̇), (x, ẋ), (θ, ẋ), (θ̇, ẋ)
+        """
+        print("🌀 Creating phase portraits...")
+
+        states = self.result.states
+        time = self.result.time
+
+        # Unpack states
+        x, x_dot, theta, theta_dot = states[:, 0], states[:, 1], states[:, 2], states[:, 3]
+
+        # Normalize angle to [-π, π] for cleaner plots
+        theta_norm = (theta + np.pi) % (2 * np.pi) - np.pi
+        theta_norm_deg = np.degrees(theta_norm)
+
+        fig, axes = plt.subplots(2, 2, figsize=(14, 10))
+        fig.suptitle("CartPole — Phase Portraits", fontsize=14, fontweight="bold")
+
+        # (a) Pendulum phase portrait (θ, θ̇)
+        ax = axes[0, 0]
+        ax.plot(theta_norm_deg, theta_dot, "b-", linewidth=0.5, alpha=0.7)
+        ax.plot(theta_norm_deg[0], theta_dot[0], "go", markersize=8, label="Start")
+        ax.plot(theta_norm_deg[-1], theta_dot[-1], "ro", markersize=8, label="End")
+        ax.axhline(0, color="k", linestyle="--", alpha=0.3)
+        ax.axvline(0, color="r", linestyle="--", alpha=0.5, label="Upright (0°)")
+        ax.set_xlabel("θ [deg]")
+        ax.set_ylabel("θ̇ [rad/s]")
+        ax.set_title("(a) Pendulum Phase Portrait")
+        ax.legend(fontsize=8)
+        ax.grid(True, alpha=0.3)
+
+        # (b) Cart phase portrait (x, ẋ)
+        ax = axes[0, 1]
+        ax.plot(x, x_dot, "b-", linewidth=0.5, alpha=0.7)
+        ax.plot(x[0], x_dot[0], "go", markersize=8, label="Start")
+        ax.plot(x[-1], x_dot[-1], "ro", markersize=8, label="End")
+        ax.axhline(0, color="k", linestyle="--", alpha=0.3)
+        ax.axvline(0, color="k", linestyle="--", alpha=0.3)
+        ax.set_xlabel("x [m]")
+        ax.set_ylabel("ẋ [m/s]")
+        ax.set_title("(b) Cart Phase Portrait")
+        ax.legend(fontsize=8)
+        ax.grid(True, alpha=0.3)
+
+        # (c) Mixed portrait (θ, ẋ)
+        ax = axes[1, 0]
+        ax.plot(theta_norm_deg, x_dot, "b-", linewidth=0.5, alpha=0.7)
+        ax.axhline(0, color="k", linestyle="--", alpha=0.3)
+        ax.axvline(0, color="r", linestyle="--", alpha=0.5)
+        ax.set_xlabel("θ [deg]")
+        ax.set_ylabel("ẋ [m/s]")
+        ax.set_title("(c) Mixed: (θ, ẋ)")
+        ax.grid(True, alpha=0.3)
+
+        # (d) Mixed portrait (θ̇, ẋ)
+        ax = axes[1, 1]
+        ax.plot(theta_dot, x_dot, "b-", linewidth=0.5, alpha=0.7)
+        ax.axhline(0, color="k", linestyle="--", alpha=0.3)
+        ax.axvline(0, color="k", linestyle="--", alpha=0.3)
+        ax.set_xlabel("θ̇ [rad/s]")
+        ax.set_ylabel("ẋ [m/s]")
+        ax.set_title("(d) Mixed: (θ̇, ẋ)")
+        ax.grid(True, alpha=0.3)
+
+        plt.tight_layout()
+
+        if save_path:
+            os.makedirs(os.path.dirname(save_path), exist_ok=True)
+            plt.savefig(save_path, dpi=300, bbox_inches="tight")
+            print(f"✅ Phase portraits saved → {save_path}")
+        if show:
+            plt.show(block=False)
+            plt.pause(0.1)
+        return fig
+
+    # ------------------------------------------------------------------ #
     #  Animation                                                           #
     # ------------------------------------------------------------------ #
 
