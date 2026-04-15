@@ -1,3 +1,4 @@
+# controller.py
 import numpy as np
 from dataclasses import dataclass
 from scipy.linalg import solve_continuous_are
@@ -10,213 +11,127 @@ def _normalize(theta: float) -> float:
     return (theta + np.pi) % (2 * np.pi) - np.pi
 
 
-@dataclass
-class ControllerParams:
-    k_energy: float = 100.0
-    k_x_swing: float = 10.0
-    k_damp: float = 5.0
-    k_x: float = 30.0
-    k_x_dot: float = 10.0
-    k_theta: float = 50.0
-    k_theta_dot: float = 15.0
-    theta_enter: float = 0.25
-    theta_exit: float = 0.50
-    omega_enter: float = 2.0
-    omega_exit: float = 4.0
-
-
-class LyapunovController:
-    """Original controller — kept for comparison."""
-
-    def __init__(self, system: CartPoleSystem, params: ControllerParams = None):
-        self.system = system
-        self.params = params or ControllerParams()
-        self.mode = "swing_up"
-
-    def compute_lyapunov(self, state):
-        x, x_dot, theta, theta_dot = state
-        if self.mode == "swing_up":
-            E = self.system.get_energy(state)
-            E_des = 2 * self.system.params.m_p * self.system.params.g * self.system.params.l
-            return 0.5 * (E - E_des) ** 2
-        else:
-            theta_err = _normalize(theta)
-            return (0.5 * self.params.k_x * x ** 2 +
-                    0.5 * x_dot ** 2 +
-                    0.5 * self.params.k_theta * theta_err ** 2 +
-                    0.5 * theta_dot ** 2)
-
-    def compute_control(self, state):
-        x, x_dot, theta, theta_dot = state
-        theta_norm = _normalize(theta)
-
-        if self.mode == "swing_up":
-            if (abs(theta_norm) < self.params.theta_enter
-                    and abs(theta_dot) < self.params.omega_enter):
-                self.mode = "stabilization"
-        elif self.mode == "stabilization":
-            if (abs(theta_norm) > self.params.theta_exit
-                    or abs(theta_dot) > self.params.omega_exit):
-                self.mode = "swing_up"
-
-        if abs(x) > 3.0:
-            self.mode = "recover_cart"
-            u = np.clip(-30.0 * x - 15.0 * x_dot,
-                        -self.system.params.max_force,
-                        self.system.params.max_force)
-            return u, self.mode
-
-        if self.mode == "stabilization":
-            th = _normalize(theta)
-            u  = -2.0 * x - 1.0 * x_dot + 10.0 * th + 2.0 * theta_dot
-            return np.clip(u, -self.system.params.max_force,
-                           self.system.params.max_force), self.mode
-        else:
-            E     = self.system.get_energy(state)
-            E_des = (2 * self.system.params.m_p
-                     * self.system.params.g
-                     * self.system.params.l)
-            u_e = self.params.k_energy * (E - E_des * 1.05) * theta_dot * np.cos(theta)
-            u_c = -self.params.k_x_swing * x - self.params.k_damp * x_dot
-            return np.clip(u_e + u_c,
-                           -self.system.params.max_force,
-                           self.system.params.max_force), self.mode
-
-
 class LQRController:
     """
-    Two-phase cart-pole controller.
+    Two-phase cart-pole controller using PENDULUM energy for swing-up.
 
-    ── Swing-up: exact energy-based (Åström–Furuta with full nonlinear dE/dt) ──
+    ── Swing-up: Pendulum energy (Åström–Furuta) ──
 
-    Energy of the pendulum (as defined in system.py):
-        E = 0.5 * m_p * (l * theta_dot)^2 + m_p * g * l * (1 + cos(theta))
+    Energy:
+        E = 0.5 * m_p * (l * θ̇)² + m_p * g * l * (1 + cos θ)
 
-    Exact time derivative (derived from your EOM):
-        dE/dt = (m_p * l * theta_dot * cos(theta) / delta)
-                * (-u - m_p*l*theta_dot^2*sin(theta) + m_p*g*sin(theta)*cos(theta))
-              = (m_p * l * theta_dot * cos(theta) / delta) * (-u + f)
+    Exact dE/dt from the EOM:
+        dE/dt = (m_p·l·θ̇·cos θ / δ) · (−u + f)
 
     where:
-        delta = (m_c + m_p) - m_p * cos^2(theta)   [from your dynamics()]
-        f     = -m_p * l * theta_dot^2 * sin(theta)
-                + m_p * g * sin(theta) * cos(theta)
+        δ = M − m_p·cos²θ
+        f = −m_p·l·θ̇²·sin θ + m_p·g·sin θ·cos θ
 
-    Lyapunov candidate:
-        V = 0.5 * (E - E_up)^2
-
-    Time derivative:
-        dV/dt = (E - E_up) * dE/dt
-              = (E - E_up) * (m_p*l*theta_dot*cos(theta)/delta) * (-u + f)
-
-    To make dV/dt <= 0, choose:
-        u = f + k_E * (E - E_up) * theta_dot * cos(theta)
-
-    Then:
-        dV/dt = -(m_p*l*k_E/delta) * (E-E_up)^2 * theta_dot^2 * cos^2(theta) <= 0  ✓
+    Control law (makes V = 0.5·(E−E_up)² decrease):
+        u = f + k_E · (E − E_up) · θ̇ · cos θ
 
     ── Stabilization: LQR ──
-
-    Linearise around theta=0, solve CARE, u = -K @ s.
-    Lyapunov function: V = s' P s  (certified dV/dt <= 0).
     """
 
-    def __init__(self,
-                 system: CartPoleSystem,
-                 # LQR weights
-                 Q: np.ndarray = None,
-                 R: float = 1.0,
-                 # Swing-up
-                 k_energy: float = 50.0,
-                 k_center: float = 0.5,
-                 k_center_d: float = 0.2,
-                 # Hysteresis
-                 theta_enter: float = 0.3,
-                 omega_enter: float = 2.0,
-                 theta_exit: float = 0.8,
-                 omega_exit: float = 6.0):
-
-        self.sys   = system
-        p          = system.params
-        self.m_c   = p.m_c
-        self.m_p   = p.m_p
-        self.l     = p.l
-        self.g     = p.g
+    def __init__(
+        self,
+        system: CartPoleSystem,
+        Q: np.ndarray = None,
+        R: float = 1.0,
+        k_energy: float = 50.0,
+        k_center: float = 0.5,
+        k_center_d: float = 0.2,
+        theta_enter: float = 0.3,
+        omega_enter: float = 2.0,
+        theta_exit: float = 0.8,
+        omega_exit: float = 6.0,
+    ):
+        self.sys = system
+        p = system.params
+        self.m_c = p.m_c
+        self.m_p = p.m_p
+        self.l = p.l
+        self.g = p.g
         self.u_max = p.max_force
 
-        # Desired energy at upright (theta=0, theta_dot=0):
-        #   E = 0.5*m_p*(l*0)^2 + m_p*g*l*(1+cos(0)) = 2*m_p*g*l
         self.E_up = 2.0 * self.m_p * self.g * self.l
 
-        # Swing-up
-        self.k_energy   = k_energy
-        self.k_center   = k_center
+        self.k_energy = k_energy
+        self.k_center = k_center
         self.k_center_d = k_center_d
 
-        # Hysteresis
         self.theta_enter = theta_enter
         self.omega_enter = omega_enter
-        self.theta_exit  = theta_exit
-        self.omega_exit  = omega_exit
+        self.theta_exit = theta_exit
+        self.omega_exit = omega_exit
 
         self.mode = "swing_up"
+        self.controller_name = "Pendulum Energy"
 
-        # ── Linearised system around theta=0 ──────────────────────────
-        # delta(theta=0) = M - m_p*cos^2(0) = m_c
-        #
-        #   x_ddot  = (u - m_p*g*theta) / m_c
-        #   th_ddot = (-u + (m_c+m_p)*g*theta) / (m_c*l)
-        M   = self.m_c + self.m_p
-        m_c = self.m_c
-        m_p = self.m_p
-        g   = self.g
-        l   = self.l
+        # ── LQR ──
+        self.A, self.B = self._linearize()
+        self.K, self.P = self._design_lqr(Q, R)
 
-        self.A = np.array([
-            [0.0, 1.0,             0.0, 0.0],
-            [0.0, 0.0,   -m_p*g / m_c, 0.0],
-            [0.0, 0.0,             0.0, 1.0],
-            [0.0, 0.0, M*g / (m_c*l),  0.0],
+        self._print_info()
+
+    def _linearize(self):
+        m_c, m_p, l, g = self.m_c, self.m_p, self.l, self.g
+        M = m_c + m_p
+
+        A = np.array([
+            [0.0, 1.0, 0.0, 0.0],
+            [0.0, 0.0, -m_p * g / m_c, 0.0],
+            [0.0, 0.0, 0.0, 1.0],
+            [0.0, 0.0, M * g / (m_c * l), 0.0],
         ])
-        self.B = np.array([
-            [0.0         ],
-            [1.0 / m_c   ],
-            [0.0         ],
-            [-1.0/(m_c*l)],
+        B = np.array([
+            [0.0],
+            [1.0 / m_c],
+            [0.0],
+            [-1.0 / (m_c * l)],
         ])
+        return A, B
 
-        # ── LQR design ────────────────────────────────────────────────
+    def _design_lqr(self, Q, R):
         if Q is None:
             Q = np.diag([1.0, 1.0, 100.0, 10.0])
+        R_mat = np.array([[float(R)]])
+        P = solve_continuous_are(self.A, self.B, Q, R_mat)
+        K = (np.linalg.inv(R_mat) @ self.B.T @ P).flatten()
+        return K, P
 
-        R_mat     = np.array([[float(R)]])
-        P         = solve_continuous_are(self.A, self.B, Q, R_mat)
-        self.K    = (np.linalg.inv(R_mat) @ self.B.T @ P).flatten()
-        self.P    = P
+    def _print_info(self):
+        eigs = np.linalg.eigvals(
+            self.A - self.B @ self.K.reshape(1, -1)
+        )
+        print(f"\n{'='*60}")
+        print(f"Controller: {self.controller_name}")
+        print(f"{'='*60}")
+        print(f"  LQR gain  K = {np.round(self.K, 4)}")
+        print(f"  Closed-loop eigenvalues = {np.round(eigs, 3)}")
+        print(f"  All stable: {bool(np.all(eigs.real < 0))}")
+        print(f"  E_up = {self.E_up:.4f} J")
+        print(f"  k_energy = {self.k_energy}")
 
-        eigs = np.linalg.eigvals(self.A - self.B @ self.K.reshape(1, -1))
-        print(f"✅ LQR gain  K = {np.round(self.K, 4)}")
-        print(f"   Closed-loop eigenvalues = {np.round(eigs, 3)}")
-        print(f"   All stable: {bool(np.all(eigs.real < 0))}")
-        print(f"   E_up = {self.E_up:.4f} J")
-
-    # ------------------------------------------------------------------ #
-    #  Public interface                                                    #
-    # ------------------------------------------------------------------ #
+    # ── Public interface ──
 
     def compute_control(self, state: np.ndarray):
         x, x_dot, theta, theta_dot = state
         th = _normalize(theta)
 
-        # ── Mode switching ─────────────────────────────────────────────
         if self.mode == "swing_up":
-            if abs(th) < self.theta_enter and abs(theta_dot) < self.omega_enter:
+            if (
+                abs(th) < self.theta_enter
+                and abs(theta_dot) < self.omega_enter
+            ):
                 self.mode = "stabilization"
         else:
-            if abs(th) > self.theta_exit or abs(theta_dot) > self.omega_exit:
+            if (
+                abs(th) > self.theta_exit
+                or abs(theta_dot) > self.omega_exit
+            ):
                 self.mode = "swing_up"
 
-        # ── Control ────────────────────────────────────────────────────
         if self.mode == "stabilization":
             u = self._lqr(x, x_dot, th, theta_dot)
         else:
@@ -231,159 +146,172 @@ class LQRController:
             s = np.array([x, x_dot, th, theta_dot])
             return float(s @ self.P @ s)
         else:
-            E = self.sys.get_energy(state)
+            E = self.sys.get_pendulum_energy(state)
             return 0.5 * (E - self.E_up) ** 2
 
-    # ------------------------------------------------------------------ #
-    #  Private: swing-up                                                   #
-    # ------------------------------------------------------------------ #
+    # ── Swing-up (pendulum energy) ──
 
     def _swing_up(self, x, x_dot, theta, theta_dot):
         """
-        Exact energy-based swing-up.
+        Pendulum-energy swing-up (Åström–Furuta style).
 
-        Step 1 — compute exact dE/dt terms:
+        u = f + k_E·(E − E_up)·θ̇·cosθ  +  centering terms
 
-            delta = (m_c + m_p) - m_p * cos^2(theta)
-
-            f = -m_p * l * theta_dot^2 * sin(theta)
-                + m_p * g * sin(theta) * cos(theta)
-
-            dE/dt = (m_p * l * theta_dot * cos(theta) / delta) * (-u + f)
-
-        Step 2 — choose u so that dV/dt = (E-E_up)*dE/dt <= 0:
-
-            u = f + k_E * (E - E_up) * theta_dot * cos(theta)
-
-            =>  dV/dt = -(m_p*l*k_E/delta)*(E-E_up)^2*theta_dot^2*cos^2(theta) <= 0
-
-        Step 3 — add a small centering term to keep cart near origin.
-                  Keep gains small so they do not fight the energy injection.
+        Guarantees dV/dt ≤ 0 for V = 0.5·(E−E_up)²
         """
-        m_p = self.m_p
-        m_c = self.m_c
-        M   = m_c + m_p
-        l   = self.l
-        g   = self.g
+        m_p, m_c, l, g = self.m_p, self.m_c, self.l, self.g
+        M = m_c + m_p
 
-        E     = self.sys.get_energy(np.array([x, x_dot, theta, theta_dot]))
+        state = np.array([x, x_dot, theta, theta_dot])
+        E = self.sys.get_pendulum_energy(state)
         E_err = E - self.E_up
 
         sin_t = np.sin(theta)
         cos_t = np.cos(theta)
-        delta = M - m_p * cos_t ** 2          # same as in system.dynamics()
 
-        # Nonlinear terms in dE/dt that do not involve u
-        f = (-m_p * l * theta_dot ** 2 * sin_t
-             + m_p * g * sin_t * cos_t)
+        # f term from dE/dt derivation
+        f = -m_p * l * theta_dot**2 * sin_t + m_p * g * sin_t * cos_t
 
-        # Energy injection: makes dV/dt = -(m_p*l*k_E/delta)*E_err^2*td^2*cos^2 <= 0
+        # Energy injection
         u_energy = f + self.k_energy * E_err * theta_dot * cos_t
 
-        # Small centering PD (do NOT use large gains here)
+        # Centering (keep cart near origin during swing)
         u_center = -self.k_center * x - self.k_center_d * x_dot
 
         return u_energy + u_center
 
-    # ------------------------------------------------------------------ #
-    #  Private: LQR                                                        #
-    # ------------------------------------------------------------------ #
+    # ── LQR ──
 
     def _lqr(self, x, x_dot, th, th_dot):
-        """u = -K @ [x, x_dot, theta, theta_dot]"""
         s = np.array([x, x_dot, th, th_dot])
         return -float(self.K @ s)
 
 
-class PureLyapunovController:
-    """Kept for reference. Use LQRController instead."""
+class FullEnergyLQRController(LQRController):
+    """
+    Two-phase controller using FULL SYSTEM energy for swing-up.
 
-    def __init__(self, system: CartPoleSystem,
-                 q1=10.0, q2=5.0, q3=100.0, q4=20.0,
-                 k_d=50.0, eps=1e-3,
-                 k_energy=50.0, k_center=5.0, k_center_d=3.0,
-                 theta_enter=0.25, omega_enter=2.0,
-                 theta_exit=0.50, omega_exit=4.0):
+    ── Swing-up: Total energy control ──
 
-        self.sys   = system
-        p          = system.params
-        self.m_c   = p.m_c
-        self.m_p   = p.m_p
-        self.l     = p.l
-        self.g     = p.g
-        self.u_max = p.max_force
+    Full energy:
+        E_full = 0.5·m_c·ẋ² + 0.5·m_p·(ẋ² + 2lẋθ̇cosθ + l²θ̇²)
+                 + m_p·g·l·(1 + cosθ)
 
-        self.q1, self.q2, self.q3, self.q4 = q1, q2, q3, q4
-        self.k_d  = k_d
-        self.eps  = eps
-        self.D    = self.m_c + self.m_p
-        self.L    = self.m_c * self.l
+    Key simplification — the power balance gives:
+        dE_full/dt = u · ẋ
 
-        self.k_energy   = k_energy
-        self.k_center   = k_center
-        self.k_center_d = k_center_d
-        self.E_up       = 2.0 * self.m_p * self.g * self.l
+    This is exact and model-independent (just Newton's third law:
+    the only external force doing work is u on the cart).
 
-        self.theta_enter = theta_enter
-        self.omega_enter = omega_enter
-        self.theta_exit  = theta_exit
-        self.omega_exit  = omega_exit
-        self.mode        = "swing_up"
+    Lyapunov candidate:
+        V = 0.5·(E_full − E_up)²
 
-    def compute_control(self, state):
+    Time derivative:
+        dV/dt = (E_full − E_up) · u · ẋ
+
+    To make dV/dt ≤ 0, choose:
+        u = −k_E · (E_full − E_up) · ẋ
+
+    Then:
+        dV/dt = −k_E · (E_full − E_up)² · ẋ²  ≤  0  ✓
+
+    Note: convergence requires persistent excitation (ẋ ≠ 0),
+    which is generally satisfied during swing-up.
+
+    Comparison with pendulum-energy controller:
+    ┌─────────────────────┬──────────────────────┬──────────────────────┐
+    │                     │   Pendulum Energy     │    Full Energy       │
+    ├─────────────────────┼──────────────────────┼──────────────────────┤
+    │ Energy definition   │ Rotational KE + PE    │ Total system KE + PE │
+    │ dE/dt expression    │ Complex (δ, f terms)  │ Simple: u·ẋ          │
+    │ Control law         │ f + k·ΔE·θ̇·cosθ      │ −k·ΔE·ẋ             │
+    │ Singularity         │ cosθ=0 or θ̇=0        │ ẋ=0 (cart stationary)│
+    │ Cart coupling       │ Indirect (centering)  │ Natural (through ẋ)  │
+    │ Cart drift          │ Needs explicit PD     │ Self-limiting        │
+    │ Energy at upright   │ 2·m_p·g·l             │ 2·m_p·g·l (ẋ→0)     │
+    └─────────────────────┴──────────────────────┴──────────────────────┘
+
+    ── Stabilization: same LQR as base class ──
+    """
+
+    def __init__(
+        self,
+        system: CartPoleSystem,
+        Q: np.ndarray = None,
+        R: float = 1.0,
+        k_energy: float = 50.0,
+        k_center: float = 0.5,
+        k_center_d: float = 0.2,
+        # Additional gain: adds a θ̇·cosθ term to help when cart is
+        # nearly stationary (breaks the ẋ=0 degeneracy)
+        k_theta_kick: float = 5.0,
+        theta_enter: float = 0.3,
+        omega_enter: float = 2.0,
+        theta_exit: float = 0.8,
+        omega_exit: float = 6.0,
+    ):
+        self.k_theta_kick = k_theta_kick
+        super().__init__(
+            system=system,
+            Q=Q,
+            R=R,
+            k_energy=k_energy,
+            k_center=k_center,
+            k_center_d=k_center_d,
+            theta_enter=theta_enter,
+            omega_enter=omega_enter,
+            theta_exit=theta_exit,
+            omega_exit=omega_exit,
+        )
+        self.controller_name = "Full Energy"
+        self._print_info()
+
+    def compute_lyapunov(self, state: np.ndarray) -> float:
         x, x_dot, theta, theta_dot = state
         th = _normalize(theta)
-
-        if self.mode == "swing_up":
-            if abs(th) < self.theta_enter and abs(theta_dot) < self.omega_enter:
-                self.mode = "stabilization"
-        else:
-            if abs(th) > self.theta_exit or abs(theta_dot) > self.omega_exit:
-                self.mode = "swing_up"
-
         if self.mode == "stabilization":
-            u = self._stabilize(x, x_dot, th, theta_dot)
+            s = np.array([x, x_dot, th, theta_dot])
+            return float(s @ self.P @ s)
         else:
-            u = self._swing_up(state)
+            E = self.sys.get_full_energy(state)
+            return 0.5 * (E - self.E_up) ** 2
 
-        return float(np.clip(u, -self.u_max, self.u_max)), self.mode
+    def _swing_up(self, x, x_dot, theta, theta_dot):
+        """
+        Full-energy swing-up.
 
-    def compute_lyapunov(self, state):
-        x, x_dot, theta, theta_dot = state
-        if self.mode == "stabilization":
-            th = _normalize(theta)
-            return 0.5 * (self.q1 * x ** 2 + self.q2 * x_dot ** 2
-                          + self.q3 * th ** 2  + self.q4 * theta_dot ** 2)
-        else:
-            E = self.sys.get_energy(state)
-            return 0.5 * ((E - self.E_up) / self.E_up) ** 2
+        Primary term (Lyapunov-certified):
+            u_energy = −k_E · (E_full − E_up) · ẋ
 
-    def _stabilize(self, x, x_dot, th, th_dot):
-        sigma = self.q2 * x_dot / self.D - self.q4 * th_dot / self.L
-        phi   = (self.q1 * x * x_dot
-                 + self.q3 * th * th_dot
-                 - (self.q2 * self.m_p * self.g / self.D) * x_dot * th
-                 + (self.q4 * self.D * self.g / self.L) * th_dot * th)
-        if abs(sigma) > self.eps:
-            return (-phi - self.k_d * sigma) / sigma
-        return -5.0 * x - 3.0 * x_dot + 30.0 * th + 5.0 * th_dot
+            => dV/dt = −k_E · (E_full − E_up)² · ẋ² ≤ 0
 
-    def _swing_up(self, state):
-        x, x_dot, theta, theta_dot = state
-        m_p = self.m_p
-        M   = self.D
-        m_c = self.m_c
-        l   = self.l
-        g   = self.g
+        Auxiliary kick term (for when ẋ ≈ 0):
+            u_kick = k_kick · (E_full − E_up) · θ̇ · cosθ
 
-        E     = self.sys.get_energy(state)
-        E_err = E - self.E_up
+            This injects a small torque-like signal that gets the
+            cart moving so the primary term can take over.
+            It's the same form as the pendulum-energy controller
+            but applied to the full energy error.
 
-        sin_t = np.sin(theta)
+        Centering PD (keeps cart bounded):
+            u_center = −k_x · x − k_d · ẋ
+        """
+        state = np.array([x, x_dot, theta, theta_dot])
+        E_full = self.sys.get_full_energy(state)
+        E_err = E_full - self.E_up
+
+        # Primary: Lyapunov-certified term
+        #   u = -k_E * (E_full - E_up) * x_dot
+        #   => dV/dt = -k_E * (E_full - E_up)^2 * x_dot^2 <= 0
+        u_energy = -self.k_energy * E_err * x_dot
+
+        # Auxiliary: break ẋ=0 degeneracy using pendulum motion
+        # When the cart is nearly still, this nudges it into motion
+        # so the primary term can do its job
         cos_t = np.cos(theta)
-        delta = M - m_p * cos_t ** 2
+        u_kick = self.k_theta_kick * E_err * theta_dot * cos_t
 
-        f = -m_p * l * theta_dot ** 2 * sin_t + m_p * g * sin_t * cos_t
-        u_energy = f + self.k_energy * E_err * theta_dot * cos_t
+        # Centering
         u_center = -self.k_center * x - self.k_center_d * x_dot
-        return u_energy + u_center
+
+        return u_energy + u_kick + u_center

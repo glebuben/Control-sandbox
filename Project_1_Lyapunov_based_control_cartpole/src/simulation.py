@@ -1,98 +1,136 @@
+# simulation.py
 import numpy as np
-import time
-from dataclasses import dataclass
-from typing import List
+from dataclasses import dataclass, field
+from typing import List, Optional
 
 from system import CartPoleSystem
-from controller import LyapunovController, PureLyapunovController
+
+
+def _normalize(theta):
+    return (theta + np.pi) % (2 * np.pi) - np.pi
 
 
 @dataclass
 class SimulationConfig:
     dt: float = 0.002
-    T: float = 15.0
+    T: float = 20.0
     save_every: int = 1
     random_seed: int = 42
 
 
 @dataclass
 class SimulationResult:
-    time: np.ndarray
-    states: np.ndarray
-    controls: np.ndarray
-    modes: List[str]
-    lyapunov_values: np.ndarray
-    energies: np.ndarray
-    computation_time: float
+    """
+    Stores all data from one simulation run.
+
+    Attributes
+    ----------
+    times           : 1-D array of recorded time stamps
+    states          : (N, 4) array  [x, x_dot, theta, theta_dot]
+    controls        : 1-D array of applied forces [N]
+    energies        : 1-D array of pendulum energy at each step
+    lyapunov_values : 1-D array of Lyapunov function value at each step
+    modes           : list of mode strings ("swing_up" / "stabilization")
+    l               : pendulum length [m]  – needed by visualizer
+    e_up            : target upright energy [J] – needed by visualizer
+    controller_name : human-readable label for plots
+    params          : CartPoleParams instance (optional, for energy calc)
+    """
+    times:           np.ndarray = field(default_factory=lambda: np.array([]))
+    states:          np.ndarray = field(default_factory=lambda: np.zeros((0, 4)))
+    controls:        np.ndarray = field(default_factory=lambda: np.array([]))
+    energies:        np.ndarray = field(default_factory=lambda: np.array([]))
+    lyapunov_values: np.ndarray = field(default_factory=lambda: np.array([]))
+    modes:           List[str]  = field(default_factory=list)
+    l:               float      = 0.5
+    e_up:            Optional[float] = None
+    controller_name: str        = ""
+    params:          object     = None   # CartPoleParams, kept as object to avoid circular import
 
 
 class CartPoleSimulation:
     """
-    Runs the cart-pole simulation for any controller that exposes:
-        compute_control(state)  -> (u, mode_string)
-        compute_lyapunov(state) -> float
+    Runs the cart-pole simulation and collects results.
+
+    Parameters
+    ----------
+    system     : CartPoleSystem
+    controller : any controller with .compute_control() and .compute_lyapunov()
+    config     : SimulationConfig
     """
 
-    def __init__(self,
-                 system: CartPoleSystem,
-                 controller,           # LyapunovController or PureLyapunovController
-                 config: SimulationConfig):
-        self.system = system
+    def __init__(self, system, controller, config):
+        # type: (CartPoleSystem, object, SimulationConfig) -> None
+        self.system     = system
         self.controller = controller
-        self.config = config
+        self.config     = config
 
-    def run(self, initial_state=None, verbose: bool = True) -> SimulationResult:
-        np.random.seed(self.config.random_seed)
+    def run(self, initial_state, verbose=False):
+        # type: (np.ndarray, bool) -> SimulationResult
+        """
+        Simulate from initial_state for config.T seconds.
+
+        Returns a fully-populated SimulationResult.
+        """
+        dt      = self.config.dt
+        n_steps = int(self.config.T / dt)
+        save    = self.config.save_every
+
+        times_list    = []
+        states_list   = []
+        controls_list = []
+        energies_list = []
+        lyapunov_list = []
+        modes_list    = []
+
         state = self.system.reset(initial_state)
+        self.controller.mode = "swing_up"
 
-        N = int(self.config.T / self.config.dt)
-        t_data, s_data, u_data, m_data, v_data, e_data = [], [], [], [], [], []
+        for i in range(n_steps):
+            t = i * dt
 
-        start = time.time()
-        if verbose:
-            print(f"   Steps: {N}, dt={self.config.dt}s, T={self.config.T}s")
+            # Always compute control (updates internal mode)
+            u_val, mode = self.controller.compute_control(state)
 
-        for step in range(N):
-            t = step * self.config.dt
+            if i % save == 0:
+                lyap = self.controller.compute_lyapunov(state)
 
-            # --- compute control and Lyapunov value ---
-            u, mode = self.controller.compute_control(state)
-            V = self.controller.compute_lyapunov(state)   # unified method name
-            E = self.system.get_energy(state)
+                times_list.append(t)
+                states_list.append(state.copy())
+                controls_list.append(float(u_val))
+                energies_list.append(
+                    float(self.system.get_pendulum_energy(state))
+                )
+                lyapunov_list.append(float(lyap))
+                modes_list.append(mode)
 
-            # --- save data ---
-            if step % self.config.save_every == 0:
-                t_data.append(t)
-                s_data.append(state.copy())
-                u_data.append(u)
-                m_data.append(mode)
-                v_data.append(V)
-                e_data.append(E)
+            state = self.system.step(u_val, dt)
 
-            # --- integrate ---
-            state = self.system.step(u, self.config.dt)
+            if verbose and i % max(1, n_steps // 10) == 0:
+                th_deg = np.degrees(_normalize(state[2]))
+                print(
+                    "  t={:6.2f}s  mode={:14s}  "
+                    "theta={:+7.2f} deg  x={:+.3f} m".format(
+                        t, mode, th_deg, state[0]
+                    )
+                )
 
-            # --- guard against numerical blow-up ---
-            if not np.all(np.isfinite(state)):
-                if verbose:
-                    print(f"⚠️  Simulation diverged at t={t:.3f}s (NaN/Inf). Stopping.")
-                break
+        # Resolve metadata from system / controller
+        p    = self.system.params
+        e_up = 2.0 * p.m_p * p.g * p.l
 
-            if verbose and step % 500 == 0:
-                theta_deg = np.degrees(state[2]) % 360
-                print(f"   t={t:6.2f}s | θ={theta_deg:6.1f}° | "
-                      f"x={state[0]:5.2f}m | V={V:.4f} | mode={mode}")
+        ctrl_name = getattr(self.controller, "controller_name", "")
 
-        comp_time = time.time() - start
-        if verbose:
-            print(f"✅ Done in {comp_time:.2f}s — {len(t_data)} data points saved.")
-
-        return SimulationResult(
-            time=np.array(t_data),
-            states=np.array(s_data),
-            controls=np.array(u_data),
-            modes=m_data,
-            lyapunov_values=np.array(v_data),
-            energies=np.array(e_data),
-            computation_time=comp_time,
+        result = SimulationResult(
+            times           = np.array(times_list),
+            states          = np.array(states_list),          # shape (N, 4)
+            controls        = np.array(controls_list),
+            energies        = np.array(energies_list),
+            lyapunov_values = np.array(lyapunov_list),
+            modes           = modes_list,
+            l               = float(p.l),
+            e_up            = float(e_up),
+            controller_name = ctrl_name,
+            params          = p,
         )
+        return result
