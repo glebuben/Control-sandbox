@@ -1,4 +1,3 @@
-# Control-sandbox
 # CONTROL-SANDBOX
 
 This git is a collection of advanced control methods implemented on Python. Each project uses on a different nonlinear control strategy applied to a benchmark dynamical system.
