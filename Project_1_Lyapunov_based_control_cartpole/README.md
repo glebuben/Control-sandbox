@@ -16,6 +16,11 @@ The system consists of a cart and a pendulum attached to it. Control tasks:
 
 ![alt text](animations/cartpole_lqr.gif)
 
+**Run Project 1:**
+```bash
+cd Project_1_Lyapunov_based_control_cartpole/src
+python main.py         
+```
 ## 🔧 Architecture of Project
 Project_1_Lyapunov_based_control_cartpole/  
 ├── src/    
