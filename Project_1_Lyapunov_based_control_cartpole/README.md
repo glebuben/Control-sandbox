@@ -54,9 +54,7 @@ The Cart-Pole system consists of a cart of mass $m_c$ moving along the horizonta
 - $a(t)$: Horizontal control force applied to the cart
 
 **Control-Bounded Formulation:** This problem is explicitly treated as a control-bounded system, where the actuator force is physically limited:
-$$
-|a(t)| \leq a_{\max}
-$$
+$$|a(t)| \leq a_{\mathrm{max}}$$
 
 The equations of motion are derived using Lagrangian mechanics. For the complete step-by-step symbolic derivation (kinetic/potential energy, Euler-Lagrange equations, and acceleration solving), refer to [`system_analysis.ipynb`](system_analysis.ipynb). The final dynamic equations are:
 
