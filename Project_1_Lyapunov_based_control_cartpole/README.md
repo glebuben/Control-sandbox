@@ -132,7 +132,7 @@ This makes the controller fundamentally robust to actuator saturation without re
 ### 3.2 Pendulum-Energy Lyapunov Control
 
 We consider the pendulum energy of the cart-pole system, where $\theta=0$ corresponds
-to the upright position and the control input is the cart force $F$. Define the pendulum
+to the upright position and the control input is the cart force $a$. Define the pendulum
 energy relative to the upright equilibrium as
 
 $$
@@ -159,7 +159,7 @@ Taking $\dot{E}_{\mathrm{pendulum}}$ and substituting $\ddot{\theta}$ from the f
 cart-pole dynamics
 
 $$
-\ddot{\theta} = \frac{-F\cos\theta + (m_c + m_p)g\sin\theta
+\ddot{\theta} = \frac{-a\cos\theta + (m_c + m_p)g\sin\theta
     - m_p l\dot{\theta}^2\sin\theta\cos\theta}{\Delta l},
 $$
 
@@ -176,7 +176,7 @@ $(m_c+m_p)g\sin\theta$ cancel exactly against $\Delta\cdot g\sin\theta$), one ob
 the exact expression
 
 $$
-\dot{E}_{\mathrm{pendulum}} = \frac{m_p l\dot{\theta}\cos\theta}{\Delta}\left(f - F\right),
+\dot{E}_{\mathrm{pendulum}} = \frac{m_p l\dot{\theta}\cos\theta}{\Delta}\left(f - a\right),
 $$
 
 where
@@ -185,20 +185,20 @@ $$
 f = -m_p l\dot{\theta}^2\sin\theta + m_p g\sin\theta\cos\theta
 $$
 
-collects all nonlinear terms that do not involve $F$. The Lyapunov derivative is therefore
+collects all nonlinear terms that do not involve $a$. The Lyapunov derivative is therefore
 
 $$
 \dot{V}_P
     = \tilde{E}\cdot\dot{E}_{\mathrm{pendulum}}
-    = \tilde{E}\cdot\frac{m_p l\,\dot{\theta}\cos\theta}{\Delta}\left(f - F\right).
+    = \tilde{E}\cdot\frac{m_p l \dot{\theta}\cos\theta}{\Delta}\left(f - a\right).
 $$
 
 **Control law.**
-To ensure $\dot{V}_P \leq 0$, we choose $F$ so that $(f - F)$ has the opposite sign to
+To ensure $\dot{V}_P \leq 0$, we choose $a$ so that $(f - a)$ has the opposite sign to
 $\tilde{E}\dot{\theta}\cos\theta$:
 
 $$
-F = f + k_E\tilde{E}\dot{\theta}\cos\theta, \qquad k_E > 0.
+a = f + k_E\tilde{E}\dot{\theta}\cos\theta, \qquad k_E > 0.
 $$
 
 The term $f$ performs exact cancellation of the nonlinear dynamics, and the second term
@@ -206,7 +206,7 @@ injects or removes energy depending on the sign of $\tilde{E}$. Substituting int
 $\dot{V}_P$:
 
 $$
-f - F = -k_E\tilde{E}\dot{\theta}\cos\theta,
+f - a = -k_E\tilde{E}\dot{\theta}\cos\theta,
 $$
 
 $$
