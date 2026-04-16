@@ -130,74 +130,117 @@ This makes the controller fundamentally robust to actuator saturation without re
 **Convergence Limitation:** While energy convergence $E_{\mathrm{total}} \to E_{\mathrm{des}}$ guarantees the system reaches the target energy surface, it does not strictly guarantee convergence to the exact upright position $(x=0, \theta=0, \dot{x}=0, \dot{\theta}=0)$. Even at $E = E_{\mathrm{des}}$, the system may settle into an oscillatory state where residual energy is stored as cart kinetic energy ($\dot{x} \neq 0$). Therefore, energy shaping alone is insufficient for asymptotic stabilization. Moreover, as it shown in [`system_analysis.ipynb`](system_analysis.ipynb) full energy may be equal to the desired one, while angle $\theta$ will not tend to the small neighbourhood of upright position ($\theta=0$). General proposition for this controller is to use it only when initially cart has a zero velocity ($\dot x =0$)
 
 ### 3.2 Pendulum-Energy Lyapunov Control
-As an alternative to full-energy shaping, we consider only the pendulum energy for the cart-pole system.  
-Assuming $\theta=0$ corresponds to the upright position and the control input is the cart force $F$, define the pendulum energy relative to the upright equilibrium as
+
+We consider the pendulum energy of the cart-pole system, where $\theta=0$ corresponds
+to the upright position and the control input is the cart force $F$. Define the pendulum
+energy relative to the upright equilibrium as
 
 $$
-E_{\mathrm{pendulum}} = \frac{1}{2} m l^2 \dot{\theta}^2 + mgl(1 + \cos\theta)
+E_{\mathrm{pendulum}} = \frac{1}{2} m_p l^2 \dot{\theta}^2 + m_p gl(1 + \cos\theta)
 $$
 
-so that the desired energy is
+so that the desired energy at the upright equilibrium $(\theta, \dot\theta) = (0, 0)$ is
 
 $$
-E_{\mathrm{des}} = 2mgl.
+E_{\mathrm{des}} = 2m_p gl.
 $$
 
-We define the energy error $\tilde{E} = E_{\mathrm{pendulum}} - E_{\mathrm{des}}$ and choose the Lyapunov candidate
+We define the energy error $\tilde{E} = E_{\mathrm{pendulum}} - E_{\mathrm{des}}$ and choose
+the Lyapunov candidate
 
 $$
-V_P = \frac{1}{2}\tilde{E}^2
+V_P = \frac{1}{2}\tilde{E}^2 \geq 0
 $$
 
-Using the cart-pole dynamics, the time derivative of the pendulum energy simplifies to
+with $V_P = 0$ if and only if $E_{\mathrm{pendulum}} = E_{\mathrm{des}}$.
+
+**Time derivative of pendulum energy.**
+Taking $\dot{E}_{\mathrm{pendulum}}$ and substituting $\ddot{\theta}$ from the full coupled
+cart-pole dynamics
 
 $$
-\dot{E}_{\mathrm{pendulum}} = a\,\dot{x}\,\cos\theta
+\ddot{\theta} = \frac{-F\cos\theta + (m_c + m_p)g\sin\theta
+    - m_p l\dot{\theta}^2\sin\theta\cos\theta}{\Delta\, l},
 $$
 
-This comes directly from the cart-pole system's balance of energy: the cart force $F$ does work on the pendulum through the horizontal component of the pendulum bob's velocity ($\dot{x} + l\dot{\theta}\sin\theta$), but the vertical component cancels out, leaving only the term proportional to $\cos\theta$.
-
-Therefore, the Lyapunov derivative becomes
+where $\Delta = m_c + m_p\sin^2\theta > 0$, yields
 
 $$
-\dot{V}_P = \tilde{E}\,\dot{E}_{\mathrm{pendulum}} = \tilde{E}\,a\,\dot{x}\,\cos\theta
+\dot{E}_{\mathrm{pendulum}}
+    = m_p l^2\dot{\theta}\ddot{\theta} - m_p g l\sin\theta\cdot\dot{\theta}
+    = m_p l\dot{\theta}\!\left(l\ddot{\theta} - g\sin\theta\right).
 $$
 
-To ensure $\dot{V}_P \leq 0$, we select the control law
+After substituting $\ddot\theta$ and simplifying (the gravity terms involving
+$(m_c+m_p)g\sin\theta$ cancel exactly against $\Delta\cdot g\sin\theta$), one obtains
+the exact expression
 
 $$
-a = -k_P \tilde{E}\,\dot{x}\,\cos\theta, \quad k_P > 0
+\dot{E}_{\mathrm{pendulum}} = \frac{m_p l\,\dot{\theta}\cos\theta}{\Delta}\left(f - F\right),
 $$
 
-Substituting this yields
+where
 
 $$
-\dot{V}_P = -k_P\,\tilde{E}^2\,\dot{x}^2\,\cos^2\theta \leq 0
+f = -m_p l\dot{\theta}^2\sin\theta + m_p g\sin\theta\cos\theta
 $$
 
-Thus, the pendulum-energy error is non-increasing under this control law.
-
-**Saturation Robustness:** In practice, the actuator is bounded ($|a| \leq a_{\max}$). The saturated control is
+collects all nonlinear terms that do not involve $F$. The Lyapunov derivative is therefore
 
 $$
-a_{\mathrm{sat}} = \mathrm{clip}\!\left(-k_P \tilde{E}\,\dot{x}\,\cos\theta,\,-a_{\max},\,a_{\max}\right)
+\dot{V}_P
+    = \tilde{E}\cdot\dot{E}_{\mathrm{pendulum}}
+    = \tilde{E}\cdot\frac{m_p l\,\dot{\theta}\cos\theta}{\Delta}\left(f - F\right).
 $$
 
-Since saturation only limits the magnitude while preserving the sign of the ideal input, we have
+**Control law.**
+To ensure $\dot{V}_P \leq 0$, we choose $F$ so that $(f - F)$ has the opposite sign to
+$\tilde{E}\dot{\theta}\cos\theta$:
 
 $$
-\mathrm{sign}(a_{\mathrm{sat}}) = -\mathrm{sign}(\tilde{E}\,\dot{x}\,\cos\theta)
+F = f + k_E\,\tilde{E}\,\dot{\theta}\cos\theta, \qquad k_E > 0.
 $$
 
-and therefore
+The term $f$ performs exact cancellation of the nonlinear dynamics, and the second term
+injects or removes energy depending on the sign of $\tilde{E}$. Substituting into
+$\dot{V}_P$:
 
 $$
-\dot{V}_P = \tilde{E}\,a_{\mathrm{sat}}\,\dot{x}\,\cos\theta \leq 0
+f - F = -k_E\,\tilde{E}\,\dot{\theta}\cos\theta,
 $$
 
-This means the pendulum-energy controller remains Lyapunov-stable even under bounded control.
+$$
+\dot{V}_P
+    = \tilde{E}\cdot\frac{m_p l\,\dot{\theta}\cos\theta}{\Delta}
+      \cdot\!\left(-k_E\,\tilde{E}\,\dot{\theta}\cos\theta\right)
+    = -\frac{m_p l\, k_E}{\Delta}\,\tilde{E}^2\,\dot{\theta}^2\cos^2\theta \leq 0.
+$$
 
-**Convergence Limitation:** As with the full-energy controller, convergence of $E_{\mathrm{pendulum}} \to E_{\mathrm{des}}$ guarantees only that the pendulum approaches the desired **energy level**, not necessarily the exact upright equilibrium. In particular, the system may reach the correct energy while still having nonzero angular velocity or being away from $\theta=0$. Therefore, this controller is best interpreted as a swing-up law, which should be combined with a local balancing controller near the upright position.
+Since $m_p, l, k_E > 0$, $\Delta > 0$ for all $\theta$, and
+$\tilde{E}^2, \dot\theta^2, \cos^2\theta \geq 0$ always, the derivative is globally
+non-positive.
+
+**Convergence via LaSalle's Invariance Principle.**
+Since $\dot{V}_P \leq 0$, the set where $\dot{V}_P = 0$ is
+
+$$
+S = \bigl\{\tilde{E} = 0\bigr\}
+    \cup \bigl\{\dot{\theta} = 0\bigr\}
+    \cup \bigl\{\cos\theta = 0\bigr\}.
+$$
+
+One can verify that the only invariant subset of $S$ consistent with the closed-loop
+dynamics is $\{\tilde{E} = 0\}$, together with the unstable hanging equilibrium
+$\theta = \pi$, which is not reached from generic initial conditions. By LaSalle's
+principle, $E_{\mathrm{pendulum}} \to E_{\mathrm{des}}$ for almost all initial conditions.
+
+**Convergence limitation.**
+Convergence of $E_{\mathrm{pendulum}} \to E_{\mathrm{des}}$ guarantees only that the
+pendulum approaches the desired **energy level**, not the exact upright equilibrium.
+The system may reach the correct energy while still having nonzero $\dot\theta$ or
+$\theta \neq 0$. This controller is therefore best interpreted as a swing-up law, to
+be combined with a local balancing controller once the state enters a neighborhood of
+$(\theta, \dot\theta) = (0, 0)$.
 
 ### 3.3 Switch to LQR Stabilization
 

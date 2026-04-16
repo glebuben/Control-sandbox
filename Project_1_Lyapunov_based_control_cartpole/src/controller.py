@@ -175,10 +175,7 @@ class LQRController:
         # Energy injection
         u_energy = f + self.k_energy * E_err * theta_dot * cos_t
 
-        # Centering (keep cart near origin during swing)
-        u_center = -self.k_center * x - self.k_center_d * x_dot
-
-        return u_energy + u_center
+        return u_energy
 
     # ── LQR ──
 
