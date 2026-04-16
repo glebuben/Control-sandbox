@@ -141,7 +141,7 @@ This approach focuses solely on regulating the pendulum's energy, potentially de
 ### 3.3 Switch to LQR Stabilization
 For both energy-based approaches, the energy-shaping controller cannot guarantee asymptotic convergence to the upright equilibrium due to the possibility of residual cart motion. To resolve this, we implement a hierarchical switching strategy:
 1. **Energy-Shaping Phase:** The Lyapunov controller drives the system to the target energy surface.
-2. **LQR Phase:** Once the state enters a small neighborhood of the upright equilibrium ($|\theta| < \theta_{\mathrm{th}}$, $|\dot{\theta}|$ < $\dot{\theta}_{\mathrm{th}}$, $|x|$ < $x_{\mathrm{th}}$, $|\dot{x}| < \dot{x}_{\mathrm{th}}$), the controller smoothly switches to a locally optimal Linear Quadratic Regulator (LQR) to achieve precise asymptotic stabilization and eliminate residual oscillations.
+2. **LQR Phase:** Once the state enters a small neighborhood of the upright equilibrium ($|\theta| < \theta_{\mathrm{th}}$, $|\dot{\theta}|$ < ${\dot{\theta}}_{\mathrm{th}}$, $ | x | $ < ${x}_{\mathrm{th}}$, $|\dot{x}| < \dot{x}_{\mathrm{th}}$), the controller smoothly switches to a locally optimal Linear Quadratic Regulator (LQR) to achieve precise asymptotic stabilization and eliminate residual oscillations.
 
 ---
 
