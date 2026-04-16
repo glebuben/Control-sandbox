@@ -46,7 +46,7 @@ Project_1_Lyapunov_based_control_cartpole/
 | $g$ | Gravitational acceleration |
 | $a$ | Horizontal force applied to the cart |  
 
-![alt text](image.png)
+![alt text](figures/image.png)
 
 The Cart-Pole system consists of a cart of mass $m_c$ moving along the horizontal axis and a pendulum of mass $m_p$ and length $l$ attached to it. The state vector is defined as $[x, \dot{x}, \theta, \dot{\theta}]^\top$, where:
 - $x(t)$: Cart position
