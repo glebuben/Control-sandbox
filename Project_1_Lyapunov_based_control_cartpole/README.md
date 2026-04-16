@@ -160,7 +160,7 @@ cart-pole dynamics
 
 $$
 \ddot{\theta} = \frac{-F\cos\theta + (m_c + m_p)g\sin\theta
-    - m_p l\dot{\theta}^2\sin\theta\cos\theta}{\Delta\, l},
+    - m_p l\dot{\theta}^2\sin\theta\cos\theta}{\Delta l},
 $$
 
 where $\Delta = m_c + m_p\sin^2\theta > 0$, yields
@@ -168,7 +168,7 @@ where $\Delta = m_c + m_p\sin^2\theta > 0$, yields
 $$
 \dot{E}_{\mathrm{pendulum}}
     = m_p l^2\dot{\theta}\ddot{\theta} - m_p g l\sin\theta\cdot\dot{\theta}
-    = m_p l\dot{\theta}\!\left(l\ddot{\theta} - g\sin\theta\right).
+    = m_p l\dot{\theta}\ \left(l\ddot{\theta} - g\sin\theta\right).
 $$
 
 After substituting $\ddot\theta$ and simplifying (the gravity terms involving
@@ -176,7 +176,7 @@ $(m_c+m_p)g\sin\theta$ cancel exactly against $\Delta\cdot g\sin\theta$), one ob
 the exact expression
 
 $$
-\dot{E}_{\mathrm{pendulum}} = \frac{m_p l\,\dot{\theta}\cos\theta}{\Delta}\left(f - F\right),
+\dot{E}_{\mathrm{pendulum}} = \frac{m_p l\dot{\theta}\cos\theta}{\Delta}\left(f - F\right),
 $$
 
 where
@@ -198,7 +198,7 @@ To ensure $\dot{V}_P \leq 0$, we choose $F$ so that $(f - F)$ has the opposite s
 $\tilde{E}\dot{\theta}\cos\theta$:
 
 $$
-F = f + k_E\,\tilde{E}\,\dot{\theta}\cos\theta, \qquad k_E > 0.
+F = f + k_E\tilde{E}\dot{\theta}\cos\theta, \qquad k_E > 0.
 $$
 
 The term $f$ performs exact cancellation of the nonlinear dynamics, and the second term
@@ -206,14 +206,14 @@ injects or removes energy depending on the sign of $\tilde{E}$. Substituting int
 $\dot{V}_P$:
 
 $$
-f - F = -k_E\,\tilde{E}\,\dot{\theta}\cos\theta,
+f - F = -k_E\tilde{E}\dot{\theta}\cos\theta,
 $$
 
 $$
 \dot{V}_P
-    = \tilde{E}\cdot\frac{m_p l\,\dot{\theta}\cos\theta}{\Delta}
-      \cdot\!\left(-k_E\,\tilde{E}\,\dot{\theta}\cos\theta\right)
-    = -\frac{m_p l\, k_E}{\Delta}\,\tilde{E}^2\,\dot{\theta}^2\cos^2\theta \leq 0.
+    = \tilde{E}\cdot\frac{m_p l\dot{\theta}\cos\theta}{\Delta}
+      \cdot\ \left(-k_E\tilde{E}\dot{\theta}\cos\theta\right)
+    = -\frac{m_p l  k_E}{\Delta}\tilde{E}^2\dot{\theta}^2\cos^2\theta \leq 0.
 $$
 
 Since $m_p, l, k_E > 0$, $\Delta > 0$ for all $\theta$, and
@@ -224,9 +224,9 @@ non-positive.
 Since $\dot{V}_P \leq 0$, the set where $\dot{V}_P = 0$ is
 
 $$
-S = \bigl\{\tilde{E} = 0\bigr\}
-    \cup \bigl\{\dot{\theta} = 0\bigr\}
-    \cup \bigl\{\cos\theta = 0\bigr\}.
+S = \{\tilde{E} = 0\}
+    \cup \{\dot{\theta} = 0\}
+    \cup \{\cos\theta = 0\}.
 $$
 
 One can verify that the only invariant subset of $S$ consistent with the closed-loop
