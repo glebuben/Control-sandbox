@@ -27,8 +27,17 @@ python main.py
 ```
 *Results:* The pendulum is stabilised, the cart returns to zero, and the Lyapunov function decays monotonically.
 
-### Project 2 – Adaptive control (under maintenance)
-Planned implementation of an adaptive controller 
+### Project 2 – Adaptive control of Airplane pitch (completed)
+**System:** CartPole (cart + inverted pendulum)  
+**Control method:** Sliding Mode Control (SMC) with Lyapunov function   
+**Goal:** Stabilise the pendulum in the upright unstable position and bring the cart to the origin.
+![alt text](Project_1_Lyapunov_based_control_cartpole/animations/cartpole_lqr.gif)
+**Run Project 2:**
+```bash
+cd Project_2_Adaptive_control_Pitch_plane/src
+python main.py         
+```
+*Results:* The pendulum is stabilised, the cart returns to zero, and the Lyapunov function decays monotonically.
 
 ### Project 3 – Backstepping control (under maintenance)
 Will demonstrate the backstepping design methodology.  A control function will be constructed step by step.
