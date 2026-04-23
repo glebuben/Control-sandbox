@@ -1,4 +1,4 @@
-Here is a complete, self-contained mathematical model of an aircraft's longitudinal dynamics, written in English, using your requested notation (`s`, `a`, `P(s,a)`, etc.), with full derivations, a symbol dictionary, a schematic explanation, and a parameter table.
+Here is a complete, self-contained mathematical model of an aircraft's longitudinal dynamics, a schematic explanation, and a parameter table.
 
 ---
 ##  1. State-Space Model (Briefly)
@@ -6,10 +6,22 @@ Here is a complete, self-contained mathematical model of an aircraft's longitudi
 **State vector:**  
 $$s = \begin{bmatrix} V \\ \alpha \\ q \\ \theta \end{bmatrix} \in \mathbb{R}^4$$
 
+| Component | Physical Meaning | Units |
+|-----------|------------------|-------|
+| $V$ | True airspeed | m/s |
+| $\alpha$ | Angle of attack | rad |
+| $q$ | Pitch rate about lateral axis | rad/s |
+| $\theta$ | Pitch angle relative to horizon | rad |
+
 **Control (action) vector:**  
 $$a = \begin{bmatrix} \delta_e \\ \delta_t \end{bmatrix} \in \mathbb{R}^2$$
 
-**Dynamics:**  
+| Component | Physical Meaning | Units | Feasible Range |
+|-----------|------------------|-------|----------------|
+| $\delta_e$ | Elevator deflection | rad | $[-\delta_{e,\max},\, +\delta_{e,\max}]$ |
+| $\delta_t$ | Throttle command | – | $[0,\, 1]$ |
+
+**Nonlinear Dynamics:**  
 $$\dot{s} = P(s, a) + d(t)$$
 
 **Explicit form of $P(s,a)$:**
@@ -32,7 +44,7 @@ For a rigid-body aircraft, sensors do not measure the abstract state $s$ directl
 - **Full-state feedback:** $h(s) = s \implies y = [V, \alpha, q, \theta]^\top$ (requires pitot, AoA vane, gyro, inclinometer)
 - **Partial feedback (typical):** $h(s) = C s$ where $C \in \mathbb{R}^{p \times 4}$ selects measurable states. Example:
   $$C = \begin{bmatrix} 1 & 0 & 0 & 0 \\ 0 & 0 & 0 & 1 \end{bmatrix} \implies y = \begin{bmatrix} V \\ \theta \end{bmatrix}$$
-- **Nonlinear observation:** If sensors have biases or nonlinear scaling, $h(s)$ can include calibration maps: $y = h(s) = C s + b_{\text{sensor}} + \eta_{\text{noise}}(s)$.
+- **Nonlinear observation:** If sensors have biases/noises or nonlinear scaling, $h(s)$ can include calibration maps: $y = h(s) = C s + b_{\text{sensor}} + \eta_{\text{noise}}(s)$. So here on output y we can see calibrated measurements with drift & stochastic noise.
 
 #### **Disturbance Model**
 The additive term $d(t) \in \mathbb{R}^4$ captures all unmodeled dynamics, environmental effects, and sensor/actuator imperfections:
@@ -44,9 +56,12 @@ $$d(t) = \begin{bmatrix} d_V(t) \\ d_\alpha(t) \\ d_q(t) \\ d_\theta(t) \end{bma
 | $d_q$ | Atmospheric turbulence, unsteady aerodynamics, gyro noise | $\pm 0.01\text{–}0.03 \text{ rad/s}^2$ |
 | $d_\theta$ | IMU drift, magnetic variation, numerical integration error | $\pm 10^{-4}\text{–}10^{-3} \text{ rad/s}$ |
 
-In the lecture's ISS framework, the full dynamics become:
+In the ISS (Input-to-State Stability) framework, the full dynamics become:
 $$\dot{s} = P(s,a) + d(t)$$
-This structure is explicitly used for robustness analysis: $\|s(t)\| \leq \beta(\|s_0\|, t) + \gamma(\|d\|_\infty)$.
+This structure is explicitly used for robustness analysis:     
+$\|s(t)\| \leq \beta(\|s_0\|, t) + \gamma(\|d\|_\infty)$.
+
+where $\beta \in \mathcal{KL}$ captures nominal decay and $\gamma \in \mathcal{K}$ bounds the effect of persistent disturbances.
 
 ---
 ###  2. Derivation of Aerodynamic Forces & Moments
@@ -94,6 +109,11 @@ The pitching moment coefficient is expanded as:
 $$C_m(\alpha, q, \delta_e) \approx C_{m_0} + C_{m_\alpha}\alpha + C_{m_q}\underbrace{\left(\frac{q\bar{c}}{2V}\right)}_{\hat{q}} + C_{m_{\delta_e}}\delta_e$$
 
 **Why $\hat{q} = \frac{q\bar{c}}{2V}$?**
+| Quantity | Units | Purpose |
+|----------|-------|---------|
+| $q$ | rad/s | Pitch rate |
+| $\bar{c}/(2V)$ | s | Time for air to travel half-chord |
+| $\hat{q}$ | – | Dimensionless pitch rate (scale-invariant) |
 - $q$ has units $[\text{rad/s}]$, but aerodynamic damping depends on the ratio of rotational speed to freestream speed.
 - $\frac{\bar{c}}{2V}$ is the characteristic time for air to travel half the chord.
 - $\hat{q}$ is **dimensionless**, making $C_{m_q}$ invariant to aircraft scale and flight speed.
@@ -244,4 +264,44 @@ $$
 | Air density (SL) | $\rho$ | 1.225 kg/m³ | Decreases with altitude |
 
 ---
-Also can be done than  **Jacobian linearization** $A = \frac{\partial P}{\partial s}$, $B = \frac{\partial P}{\partial a}$
+## 6. Jacobian Linearization (for LQR/MPC)
+
+For linear control design, linearize $P(s,a)$ about a trim condition $(s^*, a^*)$:
+$$
+A = \left.\frac{\partial P}{\partial s}\right|_{s^*,a^*} \in \mathbb{R}^{4\times 4}, \qquad
+B = \left.\frac{\partial P}{\partial a}\right|_{s^*,a^*} \in \mathbb{R}^{4\times 2}
+$$
+
+**Example: $\dot{V}$ row derivatives**
+$$
+\begin{aligned}
+\frac{\partial \dot{V}}{\partial V} &= -\frac{\rho S}{m}\left[ V C_D + \frac{V^2}{2}\frac{\partial C_D}{\partial V} \right] \\
+\frac{\partial \dot{V}}{\partial \alpha} &= \frac{1}{m}\left[ -T\sin\alpha - \frac{1}{2}\rho V^2 S \frac{\partial C_D}{\partial \alpha} + mg\cos\theta \right] \\
+\frac{\partial \dot{V}}{\partial \theta} &= -\frac{g}{m}\cos\theta \\
+\frac{\partial \dot{V}}{\partial \delta_e} &= -\frac{\rho V^2 S}{2m} \frac{\partial C_D}{\partial \delta_e} \\
+\frac{\partial \dot{V}}{\partial \delta_t} &= \frac{T_{\text{max}}}{m}\cos\alpha
+\end{aligned}
+$$
+
+**Full $A, B$ structure:**
+$$
+A = \begin{bmatrix}
+\frac{\partial \dot{V}}{\partial V} & \frac{\partial \dot{V}}{\partial \alpha} & \frac{\partial \dot{V}}{\partial q} & \frac{\partial \dot{V}}{\partial \theta} \\
+\frac{\partial \dot{\alpha}}{\partial V} & \frac{\partial \dot{\alpha}}{\partial \alpha} & \frac{\partial \dot{\alpha}}{\partial q} & \frac{\partial \dot{\alpha}}{\partial \theta} \\
+\frac{\partial \dot{q}}{\partial V} & \frac{\partial \dot{q}}{\partial \alpha} & \frac{\partial \dot{q}}{\partial q} & \frac{\partial \dot{q}}{\partial \theta} \\
+0 & 0 & 1 & 0
+\end{bmatrix}, \quad
+B = \begin{bmatrix}
+\frac{\partial \dot{V}}{\partial \delta_e} & \frac{\partial \dot{V}}{\partial \delta_t} \\
+\frac{\partial \dot{\alpha}}{\partial \delta_e} & \frac{\partial \dot{\alpha}}{\partial \delta_t} \\
+\frac{\partial \dot{q}}{\partial \delta_e} & \frac{\partial \dot{q}}{\partial \delta_t} \\
+0 & 0
+\end{bmatrix}
+$$
+
+**Linearized dynamics:**
+$$
+\dot{\tilde{s}} = A \tilde{s} + B \tilde{a}, \quad \text{where } \tilde{s} = s - s^*, \; \tilde{a} = a - a^*
+$$
+
+---
