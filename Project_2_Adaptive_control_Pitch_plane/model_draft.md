@@ -34,41 +34,13 @@ $$\dot{s} = P(s, a) + d(t)$$
 
 $$
 P(s,a) = \begin{bmatrix}
-\frac{1}{m}\left[ T(\delta_t)\cos\alpha - D(V,\alpha,\delta_e) - mg\sin\theta \right] \\[6pt]
-q - \frac{1}{mV}\left[ T(\delta_t)\sin\alpha + L(V,\alpha,\delta_e) - mg\cos\theta \right] \\[6pt]
-\frac{M(V,\alpha,q,\delta_e)}{I_y} \\[6pt]
+\frac{1}{m}\left[ T(\delta_t)\cos\alpha - D(V,\alpha,\delta_e) - mg\sin\theta \right] \\\\
+q - \frac{1}{mV}\left[ T(\delta_t)\sin\alpha + L(V,\alpha,\delta_e) - mg\cos\theta \right] \\\\
+\frac{M(V,\alpha,q,\delta_e)}{I_y} \\\\
 q
 \end{bmatrix}
 $$
 
-
----
-
-#### **Observation Model**
-The measured output is:
-$$y = h(s)$$
-For a rigid-body aircraft, sensors do not measure the abstract state $s$ directly; they measure physical quantities that can be mapped to $s$ via a known function $h$:
-- **Full-state feedback:** $h(s) = s \implies y = [V, \alpha, q, \theta]^\top$ (requires pitot, AoA vane, gyro, inclinometer)
-- **Partial feedback (typical):** $h(s) = C s$ where $C \in \mathbb{R}^{p \times 4}$ selects measurable states. Example:
-  $$C = \begin{bmatrix} 1 & 0 & 0 & 0 \\ 0 & 0 & 0 & 1 \end{bmatrix} \implies y = \begin{bmatrix} V \\ \theta \end{bmatrix}$$
-- **Nonlinear observation:** If sensors have biases/noises or nonlinear scaling, $h(s)$ can include calibration maps: $y = h(s) = C s + b_{\text{sensor}} + \eta_{\text{noise}}(s)$. So here on output y we can see calibrated measurements with drift & stochastic noise.
-
-#### **Disturbance Model**
-The additive term $d(t) \in \mathbb{R}^4$ captures all unmodeled dynamics, environmental effects, and sensor/actuator imperfections:
-$$d(t) = \begin{bmatrix} d_V(t) \\ d_\alpha(t) \\ d_q(t) \\ d_\theta(t) \end{bmatrix}$$
-| Component | Physical Origin | Typical Magnitude |
-|-----------|----------------|-------------------|
-| $d_V$ | Headwind/tailwind gusts, propulsion lag | $\pm 2\text{–}5 \text{ m/s}^2$ |
-| $d_\alpha$ | Vertical gusts, wake turbulence, AoA sensor lag | $\pm 0.02\text{–}0.05 \text{ rad/s}$ |
-| $d_q$ | Atmospheric turbulence, unsteady aerodynamics, gyro noise | $\pm 0.01\text{–}0.03 \text{ rad/s}^2$ |
-| $d_\theta$ | IMU drift, magnetic variation, numerical integration error | $\pm 10^{-4}\text{–}10^{-3} \text{ rad/s}$ |
-
-In the ISS (Input-to-State Stability) framework, the full dynamics become:
-$$\dot{s} = P(s,a) + d(t)$$
-This structure is explicitly used for robustness analysis:     
-$\|s(t)\| \leq \beta(\|s_0\|, t) + \gamma(\|d\|_\infty)$.
-
-where $\beta \in \mathcal{KL}$ captures nominal decay and $\gamma \in \mathcal{K}$ bounds the effect of persistent disturbances.
 
 ---
 ###  2. Derivation of Aerodynamic Forces & Moments
@@ -113,7 +85,10 @@ Moments require a reference length to convert force $\times$ distance into torqu
 $$M = \bar{q} S \bar{c} \, C_m(\alpha, q, \delta_e)$$
 
 The pitching moment coefficient is expanded as:
-$$C_m(\alpha, q, \delta_e) \approx C_{m_0} + C_{m_\alpha}\alpha + C_{m_q}\underbrace{\left(\frac{q\bar{c}}{2V}\right)}_{\hat{q}} + C_{m_{\delta_e}}\delta_e$$
+
+$$
+C_m(\alpha, q, \delta_e) \approx C_{m_0} + C_{m_\alpha}\alpha + C_{m_q}\underbrace{\left(\frac{q\bar{c}}{2V}\right)}_{\hat{q}} + C_{m_{\delta_e}}\delta_e
+$$
 
 **Why $\hat{q} = \frac{q\bar{c}}{2V}$?**
 | Quantity | Units | Purpose |
@@ -136,7 +111,10 @@ Engine thrust is fundamentally a function of mass flow and exhaust velocity: $T 
 3. Throttle command $\delta_t \in [0,1]$ scales linearly
 
 Thus:
-$$T(\delta_t) = T_{\text{max}}(\rho, \text{Ma}) \cdot \delta_t \approx T_{\text{max}} \cdot \delta_t$$
+
+$$
+T(\delta_t) = T_{\text{max}}(\rho, \text{Ma}) \cdot \delta_t \approx T_{\text{max}} \cdot \delta_t
+$$
 *(Altitude/Mach dependencies are lumped into $T_{\text{max}}$ or treated as slow-varying parameters in $d(t)$)*
 
 If actuator lag must be modeled:
@@ -157,11 +135,12 @@ $$I_y \dot{q} = M$$
 $$\dot{\theta} = q$$
 
 Solving for derivatives and substituting aerodynamic expressions:
+
 $$
 P(s,a) = \begin{bmatrix}
-\frac{1}{m} \left[ T_{\text{max}}\delta_t \cos\alpha - \frac{1}{2}\rho V^2 S C_D(\alpha,\delta_e) - mg\sin\theta \right] \\[8pt]
-q - \frac{1}{mV} \left[ T_{\text{max}}\delta_t \sin\alpha + \frac{1}{2}\rho V^2 S C_L(\alpha,\delta_e) - mg\cos\theta \right] \\[8pt]
-\frac{1}{I_y} \left[ \frac{1}{2}\rho V^2 S \bar{c} \, C_m(\alpha,q,\delta_e) \right] \\[8pt]
+\frac{1}{m} \left[ T_{\text{max}}\delta_t \cos\alpha - \frac{1}{2}\rho V^2 S C_D(\alpha,\delta_e) - mg\sin\theta \right] \\\\
+q - \frac{1}{mV} \left[ T_{\text{max}}\delta_t \sin\alpha + \frac{1}{2}\rho V^2 S C_L(\alpha,\delta_e) - mg\cos\theta \right] \\\\
+\frac{1}{I_y} \left[ \frac{1}{2}\rho V^2 S \bar{c} \, C_m(\alpha,q,\delta_e) \right] \\\\
 q
 \end{bmatrix}
 $$
@@ -169,17 +148,11 @@ $$
 Expanding coefficients explicitly:
 $$
 \begin{aligned}
-C_L &= C_{L_0} + C_{L_\alpha}\alpha + C_{L_{\delta_e}}\delta_e \\
-C_D &= C_{D_0} + \frac{(C_L - C_{L_0})^2}{\pi e \text{AR}} \\
+C_L &= C_{L_0} + C_{L_\alpha}\alpha + C_{L_{\delta_e}}\delta_e \\\\
+C_D &= C_{D_0} + \frac{(C_L - C_{L_0})^2}{\pi e \text{AR}} \\\\
 C_m &= C_{m_0} + C_{m_\alpha}\alpha + C_{m_q}\frac{q\bar{c}}{2V} + C_{m_{\delta_e}}\delta_e
 \end{aligned}
 $$
-
-# This yields the complete, non-linear vector field $P(s,a)$ that exactly matches your lecture's form $\dot{s} = P(s,a)$. Every state derivative is explicitly defined, all control inputs are separated, and the model is ready for:
-- Lyapunov candidate construction $L(s)$
-- ISS robustness bounds with $d(t)$
-- Barrier certificate synthesis for flight envelope protection
-- Linearization $A = \frac{\partial P}{\partial s}, B = \frac{\partial P}{\partial a}$ for LQR/MPC
 
 
 ---
@@ -190,10 +163,7 @@ $$
 | $s$ | State vector | – | $s = [V, \alpha, q, \theta]^\top$ |
 | $a$ | Control (action) vector | – | $a = [\delta_e, \delta_t]^\top$ |
 | $t$ | Time | s | Independent variable |
-| $d(t)$ | Disturbance/uncertainty | varies | Additive unmodeled effects (gusts, bias, etc.) |
 | $P(s,a)$ | Dynamics function | varies | Nonlinear vector field: $\dot{s} = P(s,a) + d(t)$ |
-| $y$ | Measured output | varies | Sensor readings |
-| $h(s)$ | Observation map | – | $y = h(s)$, often $h(s)=s$ |
 | $V$ | Airspeed | m/s | Magnitude of velocity relative to air |
 | $\alpha$ | Angle of attack | rad | Angle between wing chord and relative wind |
 | $q$ | Pitch rate | rad/s | Angular velocity about lateral axis |
@@ -212,7 +182,7 @@ $$
 | $T$ | Thrust force | N | Along engine axis |
 | $T_{\text{max}}$ | Maximum thrust | N | Engine limit at $\delta_t=1$ |
 | $C_L, C_D, C_m$ | Aerodynamic coefficients | – | Dimensionless force/moment scalars |
-| $C_{(\cdot)_\alpha}, C_{(\cdot)_{\delta_e}}, C_{m_q}$ | Stability/control derivatives | rad⁻¹ or – | Linearized sensitivity parameters |
+| $C_{(\cdot)\_\alpha}, C_{(\cdot)\_{\delta\_e}}, C_{m\_q}$ | Stability/control derivatives | rad⁻¹ or – | Linearized sensitivity parameters |
 | $AR$ | Wing aspect ratio | – | $b^2/S$, affects induced drag |
 | $e$ | Oswald efficiency factor | – | $0.7\text{–}0.9$ for typical wings |
 
@@ -269,48 +239,4 @@ $$
 | Elevator effectiveness | $C_{m_{\delta_e}}$ | −1.2 rad⁻¹ | Control authority |
 | Zero-lift drag | $C_{D_0}$ | 0.03 | Parasitic drag baseline |
 | Air density (SL) | $\rho$ | 1.225 kg/m³ | Decreases with altitude |
-
----
-## 6. Jacobian Linearization (for LQR/MPC)
-
-For linear control design, linearize $P(s,a)$ about a trim condition $(s^*, a^*)$:
-$$
-A = \left.\frac{\partial P}{\partial s}\right|_{s^*,a^*} \in \mathbb{R}^{4\times 4}, \qquad
-B = \left.\frac{\partial P}{\partial a}\right|_{s^*,a^*} \in \mathbb{R}^{4\times 2}
-$$
-
-**Example: $\dot{V}$ row derivatives**
-$$
-\begin{aligned}
-\frac{\partial \dot{V}}{\partial V} &= -\frac{\rho S}{m}\left[ V C_D + \frac{V^2}{2}\frac{\partial C_D}{\partial V} \right] \\
-\frac{\partial \dot{V}}{\partial \alpha} &= \frac{1}{m}\left[ -T\sin\alpha - \frac{1}{2}\rho V^2 S \frac{\partial C_D}{\partial \alpha} + mg\cos\theta \right] \\
-\frac{\partial \dot{V}}{\partial \theta} &= -\frac{g}{m}\cos\theta \\
-\frac{\partial \dot{V}}{\partial \delta_e} &= -\frac{\rho V^2 S}{2m} \frac{\partial C_D}{\partial \delta_e} \\
-\frac{\partial \dot{V}}{\partial \delta_t} &= \frac{T_{\text{max}}}{m}\cos\alpha
-\end{aligned}
-$$
-
-**Full $A, B$ structure:**
-$$
-A = \begin{bmatrix}
-\frac{\partial \dot{V}}{\partial V} & \frac{\partial \dot{V}}{\partial \alpha} & \frac{\partial \dot{V}}{\partial q} & \frac{\partial \dot{V}}{\partial \theta} \\
-\frac{\partial \dot{\alpha}}{\partial V} & \frac{\partial \dot{\alpha}}{\partial \alpha} & \frac{\partial \dot{\alpha}}{\partial q} & \frac{\partial \dot{\alpha}}{\partial \theta} \\
-\frac{\partial \dot{q}}{\partial V} & \frac{\partial \dot{q}}{\partial \alpha} & \frac{\partial \dot{q}}{\partial q} & \frac{\partial \dot{q}}{\partial \theta} \\
-0 & 0 & 1 & 0
-\end{bmatrix}, \quad
-B = \begin{bmatrix}
-\frac{\partial \dot{V}}{\partial \delta_e} & \frac{\partial \dot{V}}{\partial \delta_t} \\
-\frac{\partial \dot{\alpha}}{\partial \delta_e} & \frac{\partial \dot{\alpha}}{\partial \delta_t} \\
-\frac{\partial \dot{q}}{\partial \delta_e} & \frac{\partial \dot{q}}{\partial \delta_t} \\
-0 & 0
-\end{bmatrix}
-$$
-
-**Linearized dynamics:**
-$$
-\dot{\tilde{s}} = A \tilde{s} + B \tilde{a}, \quad \text{where } \tilde{s} = s - s^*, \; \tilde{a} = a - a^*
-$$
-
----
-
 
