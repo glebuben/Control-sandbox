@@ -133,7 +133,7 @@ $$
 T(\delta\_t) = T\_{\text{max}}(\rho, \text{Ma}) \cdot \delta\_t \approx T\_{\text{max}} \cdot \delta\_t
 $$
 
-*(Altitude/Mach dependencies are lumped into $T_{\text{max}}$ or treated as slow-varying parameters in $d(t)$)*
+*(Altitude/Mach dependencies are lumped into* $T_{\text{max}}$ *or treated as slow-varying parameters in* $d(t)$*)*
 
 If actuator lag must be modeled:
 
@@ -147,13 +147,17 @@ For $\dot{s} = P(s,a)$, the algebraic form $T = T_{\text{max}}\delta_t$ is stand
 Substitute $L, D, M, T$ into the longitudinal Newton-Euler equations. Using wind axes for forces and body axes for moments:
 
 **Force Balance (along & normal to $V$):**
+
 $$m\dot{V} = T\cos\alpha - D - mg\sin\theta$$
+
 $$mV\dot{\alpha} = mqV + T\sin\alpha + L - mg\cos\theta$$
 
 **Moment Balance (about $y$-axis through CG):**
+
 $$I_y \dot{q} = M$$
 
 **Kinematic Coupling:**
+
 $$\dot{\theta} = q$$
 
 Solving for derivatives and substituting aerodynamic expressions:
