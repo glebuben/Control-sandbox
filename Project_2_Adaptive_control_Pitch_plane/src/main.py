@@ -24,9 +24,11 @@ Plot / output flags  (all OFF by default — opt in to what you want)
   --gif-step INT      Sample every N-th frame for GIF (default 15)
   --gif-fps  INT      GIF frame rate (default 25)
 
-Output directory
-----------------
+Output directories
+------------------
   --out-dir STR       Root output directory (default "results")
+                      Plots are written to <out-dir>/figures/
+                      Animations and GIFs are written to <out-dir>/animation/
 
 Controller mode flags
 ---------------------
@@ -43,6 +45,8 @@ Examples
   python main.py --animation --animate-controller baseline  # baseline window
   python main.py --gif --animate-controller both            # GIF for both
   python main.py --plots --phase --lyapunov --gif   # everything static + GIF
+                                                    #   figures  -> results/figures/
+                                                    #   GIF      -> results/animation/
 """
 
 import argparse, os, sys
@@ -168,6 +172,8 @@ def main():
     _summary(res_adp,  "ADAPTIVE")
 
     os.makedirs(args.out_dir, exist_ok=True)
+    figures_dir = os.path.join(args.out_dir, "figures")
+    anim_dir    = os.path.join(args.out_dir, "animation")
 
     # ---- Legacy --no-matplotlib flag overrides new flags ---------------
     if args.no_matplotlib:
@@ -176,22 +182,24 @@ def main():
     # ---- Time-series plots ---------------------------------------------
     if args.plots:
         print("\n[plots] Generating time-series plots ...")
+        os.makedirs(figures_dir, exist_ok=True)
         plot_matplotlib(
             res_adp,
             res_base=res_base,
-            save_path=os.path.join(args.out_dir, "comparison"),
+            save_path=os.path.join(figures_dir, "comparison"),
         )
 
     # ---- Phase portraits -----------------------------------------------
     if args.phase:
-        phase_dir = os.path.join(args.out_dir, "phase_portraits")
+        phase_dir = os.path.join(figures_dir, "phase_portraits")
         print(f"\n[phase] Generating phase portraits → {phase_dir}/")
         plot_phase_portraits(res_adp, res_base, save_dir=phase_dir)
 
     # ---- Lyapunov plots ------------------------------------------------
     if args.lyapunov:
-        print(f"\n[lyapunov] Generating Lyapunov plots → {args.out_dir}/")
-        plot_lyapunov(res_adp, res_base=res_base, save_dir=args.out_dir,
+        os.makedirs(figures_dir, exist_ok=True)
+        print(f"\n[lyapunov] Generating Lyapunov plots → {figures_dir}/")
+        plot_lyapunov(res_adp, res_base=res_base, save_dir=figures_dir,
                       lya_scale=args.lya_scale)
 
     # ---- Determine which result(s) to animate -------------------------
@@ -204,12 +212,10 @@ def main():
 
     # ---- GIF export (headless, no display needed) ----------------------
     if args.gif:
+        os.makedirs(anim_dir, exist_ok=True)
         pygame.init()
         for _res, _lbl in _anim_runs:
-            _gif_path = os.path.join(
-                args.out_dir,
-                f"aircraft_{_lbl.lower()}.gif",
-            )
+            _gif_path = os.path.join(anim_dir, f"aircraft_{_lbl.lower()}.gif")
             print(f"\n[gif] Exporting {_lbl} GIF -> {_gif_path}")
             export_gif(_res, _gif_path,
                        step=args.gif_step, fps=args.gif_fps, label=_lbl,
@@ -219,8 +225,9 @@ def main():
     # ---- Interactive aircraft window -----------------------------------
     want_window = args.animation and not args.no_pygame
     if want_window:
+        os.makedirs(anim_dir, exist_ok=True)
         for _res, _lbl in _anim_runs:
-            _gif_path = os.path.join(args.out_dir, f"aircraft_{_lbl.lower()}.gif")
+            _gif_path = os.path.join(anim_dir, f"aircraft_{_lbl.lower()}.gif")
             print(f"\n[animation] Opening {_lbl} aircraft window ...")
             run_aircraft_view(_res, label=_lbl, gif_path=_gif_path,
                               lya_scale=args.lya_scale)
