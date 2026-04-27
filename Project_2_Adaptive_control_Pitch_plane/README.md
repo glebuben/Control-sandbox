@@ -205,7 +205,7 @@ $$\boxed{\delta_{e,\text{nom}} = \frac{-F(s) - k_r r}{B(s)}}$$
 
 ### 3.3 Adaptive Switching Controller (Iced Wing)
 
-After icing, introduce estimate $\widehat{\Delta C}_{L\alpha}$ and error $\widetilde{\Delta C}_{L\alpha} = \widehat{\Delta C}_{L\alpha} - \Delta C_{L\alpha}$:
+After icing, introduce estimate $\widehat{\Delta C}\_{L\alpha}$ and error $\widetilde{\Delta C}\_{L\alpha} = \widehat{\Delta C}\_{L\alpha} - \Delta C\_{L\alpha}$:
 
 $$\boxed{\delta_e = \frac{-F(s) - k_r r - Y(s)\widehat{\Delta C}_{L\alpha}}{B(s)}}, \qquad
 \boxed{\dot{\widehat{\Delta C}}_{L\alpha} = \gamma_C Y(s) r}$$
