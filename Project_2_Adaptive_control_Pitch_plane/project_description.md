@@ -52,18 +52,19 @@ project/
 │   ├── visualization_lyapunov.py # Lyapunov function V(t) static plots
 │   └── visualization_aircraft.py # Interactive pygame animation + GIF export
 │
-└── results/                      # Output directory (created on first run)
-    ├── comparison.png / .pdf     # Time-series plots (--plots)
-    ├── lyapunov.png / .pdf       # Lyapunov plots (--lyapunov)
-    ├── phase_portraits/          # Phase portrait subdirectory (--phase)
-    │   ├── phase_alpha_q_adaptive.png / .pdf
-    │   ├── phase_alpha_q_baseline.png / .pdf
-    │   ├── phase_error_r_adaptive.png / .pdf
-    │   ├── phase_error_r_baseline.png / .pdf
-    │   ├── phase_alpha_theta_adaptive.png / .pdf
-    │   └── phase_alpha_theta_baseline.png / .pdf
-    ├── aircraft_adaptive.gif     # Animation GIF (--gif)
-    └── aircraft_baseline.gif     # Baseline animation GIF (--gif --animate-controller both)
+├── figures/                      # All static plots (--figures-dir, default "figures")
+│   ├── comparison.png / .pdf     # Time-series plots (--plots)
+│   ├── lyapunov.png / .pdf       # Lyapunov plots (--lyapunov)
+│   └── phase_portraits/          # Phase portraits (--phase)
+│       ├── phase_alpha_q_adaptive.png / .pdf
+│       ├── phase_alpha_q_baseline.png / .pdf
+│       ├── phase_error_r_adaptive.png / .pdf
+│       ├── phase_error_r_baseline.png / .pdf
+│       ├── phase_alpha_theta_adaptive.png / .pdf
+│       └── phase_alpha_theta_baseline.png / .pdf
+└── animations/                   # All animated outputs (--anim-dir, default "animations")
+    ├── aircraft_adaptive.gif     # Adaptive controller GIF (--gif)
+    └── aircraft_baseline.gif     # Baseline controller GIF (--gif --animate-controller both)
 ```
 
 All source files must be run from within the `src/` directory (or with `src/` on the Python path) because they import each other by name.
