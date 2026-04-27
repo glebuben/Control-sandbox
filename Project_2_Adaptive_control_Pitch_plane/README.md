@@ -5,6 +5,7 @@
 
 The project includes 4-DOF physics model, both adaptive and baseline (nominal) controllers, static plots (time-series, phase portraits, Lyapunov function), and an interactive `pygame` visualisation with headless GIF export.
 
+> 📖 **Code reference**: Repository structure, module descriptions, all CLI arguments, and usage tutorials are documented in [`code_description.md`](code_description.md).
 ---
 
 ## 📋 Brief Description
@@ -17,7 +18,7 @@ Airframe icing reduces the lift-curve slope $C_{L\alpha}$, destabilising the pit
 | **Adaptive controller** | Augments nominal law with real time parameter estimator for $\Delta C_{L\alpha}$ that activates once anomalous tracking errors are detected |
 | **Aircraft dynamics** | Nonlinear longitudinal equations of motion  |
 
-> **Mathematical reference**: The complete derivation of the longitudinal aircraft model, aerodynamic scaling, and control law is provided in `model_draft.md` and `lyapunov_icing_controller_final_description.md`.
+> **Mathematical reference**: The complete derivation of the longitudinal aircraft model, aerodynamic scaling, and control law is provided in [`model_draft.md`](model_draft.md) and [`lyapunov_icing_controller.md`](lyapunov_icing_controller.md).
 
 ---
 
@@ -26,6 +27,7 @@ Airframe icing reduces the lift-curve slope $C_{L\alpha}$, destabilising the pit
 cd Project_2_Adaptive_control_Pitch_plane/src
 python main.py         
 ```
+See [`code_description.md`](code_description.md) for the full list of command-line arguments and output options.
 ---
 ## 🔧 Architecture of Project
 Project_2_Adaptive_control_Pitch_plane/  
@@ -37,13 +39,17 @@ Project_2_Adaptive_control_Pitch_plane/
 │ └── main.py # initial start file   
 ├── configs/ # config files     
 ├── figures/ # graphics     
-├── animations/ # GIF animation        
+├── animations/ # GIF animation    
+├── code_description.md # repository guide & CLI reference 
+├── model_draft.md # more detailed model description     
+├── lyapunov_icing_controller.md # more detailed controller definition with stabilization proofs
 └── README.md   
 
+> 📖 See [`code_description.md`](code_description.md) for a detailed breakdown of each module, its public API, and step-by-step usage tutorials.
 
 ## 1. System Description & Symbol Dictionary
 
-*Full mathematical derivation: `model_draft.md` §1-2, `lyapunov_icing_controller_final_description.md` §1*
+*Full mathematical derivation: [`model_draft.md`](model_draft.md) §1-2, [`lyapunov_icing_controller.md`](lyapunov_icing_controller.md) §1*
 
 ![alt text](figures/plane.jpg)
 *Scheme only for main idea reference. Description of symbols below.
@@ -108,7 +114,7 @@ $$
 
 ## 2. Aerodynamics & Icing Model
 
-*Full derivation: `model_draft.md` §2, `lyapunov_icing_controller_final_description.md` §2*
+*Full derivation: [`model_draft.md`](model_draft.md) §2, [`lyapunov_icing_controller.md`](lyapunov_icing_controller.md) §2*
 
 ### Dynamic Pressure & Force Scaling
 
@@ -168,7 +174,7 @@ $$\boxed{\Delta\dot{\alpha}_{\text{ice}} = \frac{1}{2}\frac{\rho V S}{m} \alpha 
 
 ## 3. Control Strategy & Lyapunov Proofs
 
-*Full derivation: `lyapunov_icing_controller_final_description.md` §4-9*
+*Full derivation: [`lyapunov_icing_controller.md`](lyapunov_icing_controller) §4-9*
 
 ### 3.1 Filtered Error & Reduced Dynamics
 
@@ -247,7 +253,7 @@ $$\delta_e \leftarrow \text{clip}(\delta_e, -\delta_{e,\max}, +\delta_{e,\max})$
 
 ## 4. Parameters Reference
 
-*Source: `project_description.md`, `lyapunov_icing_controller_final_description.md` §11*
+*Source: [`code_description.md`](code_description.md), [`lyapunov_icing_controller.md`](lyapunov_icing_controller) §11*
 
 ### Aircraft & Aerodynamic Parameters
 
@@ -320,7 +326,7 @@ The $\alpha-q$ portraits confirm the same conclusion: the baseline controller ke
 
 ## 📝 Discussion & Limitations
 
-The baseline nominal controller successfully tracks $\alpha_{\text{ref}}$ in clean conditions but exhibits steady-state error and increased control effort once icing reduces $C_{L\alpha}$. The adaptive controller detects the anomaly via the filtered error $r$, activates the parameter estimator, and converges $\widehat{\Delta C}_{L\alpha}$ to the true degradation value. The composite Lyapunov function guarantees $\dot{\mathcal{V}} \leq 0$, ensuring bounded signals and asymptotic tracking recovery **under the assumptions listed in `lyapunov_icing_controller_final_description.md` §10**.
+The baseline nominal controller successfully tracks $\alpha_{\text{ref}}$ in clean conditions but exhibits steady-state error and increased control effort once icing reduces $C_{L\alpha}$. The adaptive controller detects the anomaly via the filtered error $r$, activates the parameter estimator, and converges $\widehat{\Delta C}_{L\alpha}$ to the true degradation value. The composite Lyapunov function guarantees $\dot{\mathcal{V}} \leq 0$, ensuring bounded signals and asymptotic tracking recovery **under the assumptions listed in [`lyapunov_icing_controller.md`](lyapunov_icing_controller.md) §10**.
 
 ---
 
