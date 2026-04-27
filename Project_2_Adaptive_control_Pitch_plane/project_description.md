@@ -21,17 +21,17 @@ The project includes the full physics model, both adaptive and baseline controll
 
 ## Background
 
-Airframe icing reduces the lift-curve slope `C_Lα`, destabilising the pitch axis and forcing the elevator to work harder to hold a reference angle of attack.  The adaptive controller detects this degradation automatically using a Lyapunov-based switching law — no explicit icing sensor is required.
+Airframe icing reduces the lift-curve slope $C_{L_α}$, destabilising the pitch axis and forcing the elevator to work harder to hold a reference angle of attack.  The adaptive controller detects this degradation automatically using a Lyapunov-based switching law — no explicit icing sensor is required.
 
-The **baseline controller** applies a fixed Lyapunov nominal elevator law with no estimation.  The **adaptive controller** augments this with an online parameter estimator for `ΔC_Lα` that activates once anomalous tracking errors are detected.
+The **baseline controller** applies a fixed Lyapunov nominal elevator law with no estimation.  The **adaptive controller** augments this with an online parameter estimator for $ΔC_{L_α}$ that activates once anomalous tracking errors are detected.
 
 The **Lyapunov function** used in the stability proof is:
 
-```
-V(t) = ½ r(t)²  +  (1 / 2γ_C) · ΔC̃_Lα(t)²
-```
+$$
+V(t) = \frac{1}{2} r(t)^2  +  \frac{1}{2\gamma_C} · ΔC̃_{L_α}(t)^2
+$$
 
-where `r = e_q + λ_α · e_α` is the filtered tracking error and `ΔC̃_Lα = ΔĈ_Lα − ΔC_Lα*` is the parameter estimation error.
+where $r = e_q + λ_α · e_α$ is the filtered tracking error and $ΔC̃_{L_α} = ΔĈ_Lα − ΔC_{L_α}$ is the parameter estimation error.
 
 ---
 
@@ -223,7 +223,7 @@ x_next = aircraft.step(t, x, delta_e, delta_t, dt)
 de_trim, dt_trim, theta_trim = aircraft.trim(V_trim, alpha_trim)
 ```
 
-Default aircraft parameters: m = 1200 kg, S = 16.2 m², c̄ = 1.5 m, I_y = 1800 kg·m², ρ = 1.225 kg/m³, C_Lα = 3.5 /rad.
+Default aircraft parameters: m = 1200 kg, S = 16.2 m², c̄ = 1.5 m, $I_y$ = 1800 kg·m², ρ = 1.225 kg/m³, $C_{L_α}$ = 3.5 /rad.
 
 ---
 
@@ -320,7 +320,7 @@ from visualization_lyapunov import plot_lyapunov
 plot_lyapunov(res_adp, res_base=res_base, save_dir="results", lya_scale="log")
 ```
 
-Panels: total V(t), tracking term ½r², estimation term (1/2γ)ΔC̃².  For the baseline controller the estimation term is identically zero.
+Panels: total $V(t)$, tracking term $\frac{1}{2}r^2$, estimation term $(\frac{1}{2\gamma})ΔC̃^2$.  For the baseline controller the estimation term is identically zero.
 
 Can also be run standalone:
 
@@ -364,46 +364,3 @@ Can also be run standalone:
 python visualization_aircraft.py --controller adaptive --lya-scale log
 python visualization_aircraft.py --controller baseline --gif-only --lya-scale linear
 ```
-
----
-
-## Physics reference
-
-### Equations of motion
-
-```
-V_dot     = (1/m)   [ T cos α − D − mg sin γ ]
-α_dot     = q − (1/mV) [ T sin α + L − mg cos γ ]
-q_dot     = M / I_y
-θ_dot     = q
-
-γ = θ − α   (flight-path angle)
-```
-
-### Aerodynamic coefficients
-
-```
-C_L = C_L0 + C_Lα · α + C_Lδe · δe
-C_D = C_D0 + (C_Lα · α + C_Lδe · δe)² / (π · e · AR)
-C_m = C_m0 + C_mα · α + C_mq · (q c̄)/(2V) + C_mδe · δe
-```
-
-### Icing model
-
-At `t ≥ t_ice`:  `C_Lα → C_Lα + ΔC_Lα`  where `ΔC_Lα < 0`
-
-The default severity of 30 % gives `ΔC_Lα = −1.05` (from `C_Lα = 3.5`).
-
-### Control law
-
-```
-r     = e_q + λ_α · e_α                     (filtered error)
-δe    = (−F(s) − k_r · r − Y(s) · ΔĈ_Lα) / B(s)
-ΔĈ_Lα_dot = γ_C · Y(s) · r               (adaptation law)
-```
-
-The functions `F(s)`, `B(s)`, `Y(s)` depend on the current state and capture the nominal pitch dynamics, elevator authority, and icing regression term respectively.
-
-### Lyapunov stability
-
-The candidate function `V = ½r² + (1/2γ_C) ΔC̃_Lα²` satisfies `V̇ ≤ −k_r r²` under the given control law (in the absence of elevator saturation).  This guarantees that `r → 0` and `ΔĈ_Lα → ΔC_Lα*` asymptotically after the adaptive mode is triggered.
