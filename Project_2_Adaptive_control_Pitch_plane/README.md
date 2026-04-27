@@ -301,7 +301,7 @@ Icing was introduced at $t = 10\,\mathrm{s}$, and adaptive control was activated
 
 ![alt text](figures/comparison.png)
 
-The adaptive controller shows a short transient after icing, but then returns \(\alpha\) close to the reference value and damps the pitch rate \(q\) toward zero. The estimate \(\widehat{\Delta C}_{L_\alpha}\) converges to the imposed degradation, confirming that the controller correctly compensates for the loss of lift effectiveness.
+The adaptive controller shows a short transient after icing, but then returns $\alpha$ close to the reference value and damps the pitch rate $q$ toward zero. The estimate $\widehat{\Delta C}_{L_\alpha}$ converges to the imposed degradation, confirming that the controller correctly compensates for the loss of lift effectiveness.
 
 The phase portraits support this result. In the Lyapunov error space, the baseline trajectory settles in a nonzero error region, while the adaptive trajectory returns toward the desired equilibrium after activation.
 
@@ -311,7 +311,7 @@ The phase portraits support this result. In the Lyapunov error space, the baseli
 
 
 
-The \(\alpha\)-\(q\) portraits confirm the same conclusion: the baseline controller keeps the system bounded but away from the original reference, whereas the adaptive controller returns the motion toward \(\alpha \approx 4^\circ\) and \(q \approx 0\).
+The $\alpha$-$q$ portraits confirm the same conclusion: the baseline controller keeps the system bounded but away from the original reference, whereas the adaptive controller returns the motion toward $\alpha \approx 4^\circ$ and $q \approx 0$.
 
 ![alt text](figures/phase_portraits/phase_alpha_q_baseline.png)
 
