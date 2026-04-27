@@ -286,7 +286,7 @@ $$\widehat{\Delta C}_{L\alpha} \leftarrow \text{clip}\big(\widehat{\Delta C}_{L\
 ---
 
 ## 6. Results
-Icing was introduced at \(t=10\,s\), and adaptive control was activated at approximately \(t=12.01\,s\). After icing, the baseline controller remains stable but develops a steady tracking error: the angle of attack increases from about \(4^\circ\) to \(5.4^\circ\). This occurs because the reduced lift-curve slope \(C_{L_\alpha}\) lowers lift generation and shifts the longitudinal equilibrium.
+Icing was introduced at $t = 10\,\mathrm{s}$, and adaptive control was activated at approximately $t = 12.01\,\mathrm{s}$. After icing, the baseline controller remains stable but develops a steady tracking error: the angle of attack increases from about $4^\circ$ to $5.4^\circ$. This occurs because the reduced lift-curve slope $C_{L_\alpha}$ lowers lift generation and shifts the longitudinal equilibrium.
 
 ![alt text](figures/comparison.png)
 
