@@ -50,8 +50,8 @@ Project_2_Adaptive_control_Pitch_plane/
 
 ### State & Control Vectors
 
-$$s = \begin{bmatrix} V \\ \alpha \\ q \\ \theta \end{bmatrix} \in \mathbb{R}^4, \qquad
-a = \begin{bmatrix} \delta_e \\ \delta_t \end{bmatrix} \in \mathbb{R}^2$$
+$$s = \left[\begin{smallmatrix} V \\ \alpha \\ q \\ \theta \end{smallmatrix}\right] \in \mathbb{R}^4, \qquad
+a = \left[\begin{smallmatrix} \delta_e \\ \delta_t \end{smallmatrix}\right] \in \mathbb{R}^2$$
 
 | Symbol | Meaning | Units |
 |--------|---------|-------|
@@ -266,7 +266,7 @@ $$\delta_e \leftarrow \text{clip}(\delta_e, -\delta_{e,\max}, +\delta_{e,\max})$
 | $\delta_{e,\max}$ | 25° | rad | Elevator actuator limit |
 | $e_{\alpha,\text{thr}}$ | 3° | rad | AoA error trigger threshold |
 | $r_{\text{thr}}$ | 2°/s | rad/s | Filtered error trigger threshold |
-| $\text{detect\_steps}$ | 20 | – | Consecutive detections to activate adaptation |
+| $\text{detect}\_\text{steps}$ | 20 | – | Consecutive detections to activate adaptation |
 
 ---
 
