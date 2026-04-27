@@ -50,8 +50,21 @@ Project_2_Adaptive_control_Pitch_plane/
 
 ### State & Control Vectors
 
-$$s = \begin{bmatrix} V \\ \alpha \\ q \\ \theta \end{bmatrix} \in \mathbb{R}^4, \qquad
-a = \begin{bmatrix} \delta_e \\ \delta_t \end{bmatrix} \in \mathbb{R}^2$$
+$$
+s = \begin{bmatrix}
+V \\
+\alpha \\
+q \\
+\theta
+\end{bmatrix} \in \mathbb{R}^4
+$$
+
+$$
+a = \begin{bmatrix}
+\delta_e \\
+\delta_t
+\end{bmatrix} \in \mathbb{R}^2
+$$
 
 | Symbol | Meaning | Units |
 |--------|---------|-------|
@@ -72,9 +85,9 @@ $$\boxed{\dot{s} = P(s, a) + d(t)}$$
 
 $$
 P(s,a) = \begin{bmatrix}
-\displaystyle \frac{1}{m}\Big[ T(\delta_t)\cos\alpha - D(V,\alpha,\delta_e) - mg\sin\gamma \Big] \\[8pt]
-\displaystyle q - \frac{1}{mV}\Big[ T(\delta_t)\sin\alpha + L(V,\alpha,\delta_e) - mg\cos\gamma \Big] \\[8pt]
-\displaystyle \frac{1}{I_y} M(V,\alpha,q,\delta_e) \\[8pt]
+\displaystyle \frac{1}{m}\Big[ T(\delta_t)\cos\alpha - D(V,\alpha,\delta_e) - mg\sin\gamma \Big] \\
+\displaystyle q - \frac{1}{mV}\Big[ T(\delta_t)\sin\alpha + L(V,\alpha,\delta_e) - mg\cos\gamma \Big] \\
+\displaystyle \frac{1}{I_y} M(V,\alpha,q,\delta_e) \\
 q
 \end{bmatrix}, \quad \gamma = \theta - \alpha
 $$
@@ -214,24 +227,23 @@ $$\boxed{\mathcal{V} = \frac{1}{2}r^2 + \frac{1}{2\gamma_C}\widetilde{\Delta C}_
 
 Adaptive mode activates when errors exceed thresholds for `detect_steps` consecutive samples:
 
-$$\text{adaptive\_mode} = \begin{cases}
-\text{True}, & |e_\alpha| > e_{\alpha,\text{thr}} \;\land\; |r| > r_{\text{thr}} \;\text{for}\; N \geq \text{detect\_steps} \\
-\text{False}, & \text{otherwise}
-\end{cases}$$
+**Switching condition:**
+- Activate if: $|e_{\alpha}| > e_{\alpha, \text{thr}}$ AND $|r| > r_{\text{thr}}$ for $N \geq N_{\text{detect}}$ steps
+- Deactivate otherwise
 
-Projection and saturation enforce physical bounds:
+**Projection and saturation:**
 
-$$\widehat{\Delta C}_{L\alpha} \leftarrow \text{clip}\big(\widehat{\Delta C}_{L\alpha},\, \Delta C_{\min},\, 0\big), \qquad
-\delta_e \leftarrow \text{clip}\big(\delta_e,\, -\delta_{e,\max},\, +\delta_{e,\max}\big)$$
+$$\widehat{\Delta C_{L\alpha}} \leftarrow \text{clip}(\widehat{\Delta C_{L\alpha}}, \Delta C_{\min}, 0)$$
+
+$$\delta_e \leftarrow \text{clip}(\delta_e, -\delta_{e,\max}, +\delta_{e,\max})$$
 
 | Symbol | Meaning | Units |
 |--------|---------|-------|
-| $e_{\alpha,\text{thr}}$ | AoA error detection threshold | rad |
+| $e_{\alpha, \text{thr}}$ | AoA error detection threshold | rad |
 | $r_{\text{thr}}$ | Filtered error detection threshold | rad/s |
-| $\text{detect\_steps}$ | Consecutive detections to trigger | – |
+| $N_{\text{detect}}$ | Consecutive detections to trigger | – |
 | $\Delta C_{\min}$ | Lower projection bound for estimate | rad⁻¹ |
 | $\delta_{e,\max}$ | Elevator saturation limit | rad |
-
 ---
 
 ## 4. Parameters Reference
@@ -267,7 +279,7 @@ $$\widehat{\Delta C}_{L\alpha} \leftarrow \text{clip}\big(\widehat{\Delta C}_{L\
 | $\delta_{e,\max}$ | 25° | rad | Elevator actuator limit |
 | $e_{\alpha,\text{thr}}$ | 3° | rad | AoA error trigger threshold |
 | $r_{\text{thr}}$ | 2°/s | rad/s | Filtered error trigger threshold |
-| $\text{detect\_steps}$ | 20 | – | Consecutive detections to activate adaptation |
+| $\text{detect}\_\text{steps}$ | 20 | – | Consecutive detections to activate adaptation |
 
 ---
 
