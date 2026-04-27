@@ -1,6 +1,3 @@
-Here is a complete, self-contained mathematical model of an aircraft's longitudinal dynamics, a schematic explanation, and a parameter table.
-
----
 ##  1. State-Space Model (Briefly)
 
 **State vector:**  
@@ -134,12 +131,6 @@ T(\delta\_t) = T\_{\text{max}}(\rho, \text{Ma}) \cdot \delta\_t \approx T\_{\tex
 $$
 
 *(Altitude/Mach dependencies are lumped into* $T_{\text{max}}$ *or treated as slow-varying parameters in* $d(t)$*)*
-
-If actuator lag must be modeled:
-
-$$
-\tau_T \dot{T} + T = T_{\text{max}} \delta_t \implies T(s) = \frac{T_{\text{max}}}{\tau_T s + 1} \delta_t(s)
-$$
 
 For $\dot{s} = P(s,a)$, the algebraic form $T = T_{\text{max}}\delta_t$ is standard.
 
