@@ -124,15 +124,15 @@ Both the adaptive and baseline controllers are always simulated on every run.  A
 | `--V-trim` | float | `60.0` | Trim airspeed in m/s |
 | `--alpha-ref` | float | `None` | Reference angle of attack in degrees; defaults to trim alpha (4°) |
 | `--dt` | float | `0.01` | Integration timestep in seconds |
-| `--out-dir` | str | `results` | Root directory for all output files |
+| `--out-dir` | str | `results` | Root directory; plots go to `<out-dir>/figures/`, animations to `<out-dir>/animation/` |
 
 ### Plot flags (opt-in, all off by default)
 
 | Argument | Description |
 |---|---|
-| `--plots` | Save time-series comparison plots (α, q, δe, ΔĈ_Lα, V) for both controllers as `<out-dir>/comparison.png/.pdf` |
-| `--phase` | Save 6 phase portraits (3 types × 2 controllers) to `<out-dir>/phase_portraits/` |
-| `--lyapunov` | Save the Lyapunov function decomposition plot to `<out-dir>/lyapunov.png/.pdf` |
+| `--plots` | Save time-series comparison plots (α, q, δe, ΔĈ_Lα, V) for both controllers to `<out-dir>/figures/comparison.png/.pdf` |
+| `--phase` | Save 6 phase portraits (3 types × 2 controllers) to `<out-dir>/figures/phase_portraits/` |
+| `--lyapunov` | Save the Lyapunov function decomposition plot to `<out-dir>/figures/lyapunov.png/.pdf` |
 
 ### Animation flags
 
