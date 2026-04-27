@@ -31,7 +31,7 @@ python main.py
 **System:** Planar aircraft pitch control  
 **Control method:** Certanty equivalance controller   
 **Goal:** Stabilise the aircraft in case of icing.
-![alt text](Project_2_Adaptive_control_Pitch_plane/results/aircraft_sim.gif)
+![alt text](Project_2_Adaptive_control_Pitch_plane/animations/aircraft_adaptive.gif)
 **Run Project 2:**
 ```bash
 cd Project_2_Adaptive_control_Pitch_plane/src
