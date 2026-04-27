@@ -47,8 +47,11 @@ $$
 
 #### **2.1 Dynamic Pressure & Dimensional Scaling**
 From Bernoulli's equation for steady, incompressible, inviscid flow along a streamline:
+
 $$p + \frac{1}{2}\rho V^2 = \text{constant}$$
+
 The term $\frac{1}{2}\rho V^2$ represents the kinetic energy per unit volume of the airstream, defined as the **dynamic pressure**:
+
 $$\bar{q} \triangleq \frac{1}{2}\rho V^2 \quad [\text{Pa} = \text{N/m}^2]$$
 
 Using the **Buckingham $\pi$ Theorem**, any aerodynamic force $F$ depends on:
@@ -58,17 +61,28 @@ Using the **Buckingham $\pi$ Theorem**, any aerodynamic force $F$ depends on:
 - Orientation: $\alpha, \beta$
 
 Non-dimensionalizing yields:
-$$\frac{F}{\bar{q} S} = f(\text{Re}, \text{Ma}, \text{shape}, \alpha, \dots) \triangleq C_F$$
+
+$$
+\frac{F}{\bar{q} S} = f(\text{Re}, \text{Ma}, \text{shape}, \alpha, \dots) \triangleq C_F
+$$
 Thus, the universal scaling law for aerodynamic forces is:
+
 $$F = \bar{q} S C_F = \frac{1}{2}\rho V^2 S C_F$$
 
 #### **2.2 Lift & Drag Forces**
 Lift ($L$) and drag ($D$) are defined relative to the **wind axes** (perpendicular and parallel to $V$):
+
 $$L = \bar{q} S C_L(\alpha, \delta_e), \quad D = \bar{q} S C_D(\alpha, \delta_e)$$
 
 For control design, coefficients are linearized around a trim condition $(\alpha_0, \delta_{e0})$ using a first-order Taylor expansion:
-$$C_L(\alpha, \delta_e) \approx C_{L_0} + C_{L_\alpha}(\alpha - \alpha_0) + C_{L_{\delta_e}}(\delta_e - \delta_{e0})$$
-$$C_D(\alpha, \delta_e) \approx C_{D_0} + C_{D_\alpha}(\alpha - \alpha_0) + C_{D_{\delta_e}}(\delta_e - \delta_{e0}) + C_{D_i}$$
+
+$$
+C_L(\alpha, \delta_e) \approx C_{L_0} + C_{L_\alpha}(\alpha - \alpha_0) + C_{L_{\delta_e}}(\delta_e - \delta_{e0})
+$$
+
+$$
+C_D(\alpha, \delta_e) \approx C_{D_0} + C_{D_\alpha}(\alpha - \alpha_0) + C_{D_{\delta_e}}(\delta_e - \delta_{e0}) + C_{D_i}
+$$
 
 **Induced Drag Derivation:**
 From lifting-line theory, the downwash velocity $w$ creates an induced angle $\alpha_i \approx \frac{w}{V} = \frac{C_L}{\pi e \text{AR}}$. The induced drag coefficient is:
@@ -113,12 +127,16 @@ Engine thrust is fundamentally a function of mass flow and exhaust velocity: $T 
 Thus:
 
 $$
-T(\delta_t) = T_{\text{max}}(\rho, \text{Ma}) \cdot \delta_t \approx T_{\text{max}} \cdot \delta_t
+T(\delta\_t) = T\_{\text{max}}(\rho, \text{Ma}) \cdot \delta\_t \approx T\_{\text{max}} \cdot \delta\_t
 $$
 *(Altitude/Mach dependencies are lumped into $T_{\text{max}}$ or treated as slow-varying parameters in $d(t)$)*
 
 If actuator lag must be modeled:
-$$\tau_T \dot{T} + T = T_{\text{max}} \delta_t \implies T(s) = \frac{T_{\text{max}}}{\tau_T s + 1} \delta_t(s)$$
+
+$$
+\tau_T \dot{T} + T = T_{\text{max}} \delta_t \implies T(s) = \frac{T_{\text{max}}}{\tau_T s + 1} \delta_t(s)
+$$
+
 For $\dot{s} = P(s,a)$, the algebraic form $T = T_{\text{max}}\delta_t$ is standard.
 
 #### **2.5 Closing the Loop: From Physics to $P(s,a)$**
@@ -146,6 +164,7 @@ q
 $$
 
 Expanding coefficients explicitly:
+
 $$
 \begin{aligned}
 C_L &= C_{L_0} + C_{L_\alpha}\alpha + C_{L_{\delta_e}}\delta_e \\\\
