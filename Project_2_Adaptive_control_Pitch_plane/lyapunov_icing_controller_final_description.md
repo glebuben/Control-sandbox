@@ -131,7 +131,9 @@ The piecewise icing model is
 
 $$
 \Delta C_{L_\alpha}(t)
-=\begin{cases}0, & t<t_{ice},\\\Delta C_{L_\alpha}^{ice}, & t\geq t_{ice}.\end{cases}
+=\begin{cases}
+0, & t<t_{ice},\\\Delta C_{L_\alpha}^{ice}, & t\geq t_{ice}.
+\end{cases}
 $$
 
 Thus,
@@ -161,35 +163,20 @@ $$
 the icing-induced contribution to the angle-of-attack dynamics is
 
 $$
-\Delta\dot{\alpha}_{ice}
-=
--\frac{\Delta L}{mV}.
+\Delta\dot{\alpha}_{ice}=-\frac{\Delta L}{mV}.
 $$
 
 Substituting $\Delta L$,
 
 $$
-\Delta\dot{\alpha}_{ice}
-=
--
-\frac{1}{mV}
-\left(
-\frac{1}{2}\rho V^2S\alpha\Delta C_{L_\alpha}
-\right),
+\Delta\dot{\alpha}_{ice}=-\frac{1}{mV}\left(\frac{1}{2}\rho V^2S\alpha\Delta C_{L_\alpha}\right),
 $$
 
 hence
 
 $$
 \boxed{
-\Delta\dot{\alpha}_{ice}
-=
--
-\frac{1}{2}
-\frac{\rho VS}{m}
-\alpha
-\Delta C_{L_\alpha}
-}.
+\Delta\dot{\alpha}_{ice}=-\frac{1}{2}\frac{\rho VS}{m}\alpha\Delta C_{L_\alpha}}.
 $$
 
 Therefore, in this system, icing does not directly enter the pitch-rate equation $\dot{q}$. It affects the lift force and therefore the angle-of-attack dynamics. This is the reason why the controller is derived using the filtered error $r$, where $\dot{\alpha}$ contributes to the reduced error dynamics.
