@@ -27,7 +27,9 @@ Airframe icing reduces the lift-curve slope $C_{L\alpha}$, destabilising the pit
 cd Project_2_Adaptive_control_Pitch_plane/src
 python main.py         
 ```
-See [`code_description.md`](code_description.md) for the full list of command-line arguments and output options.
+
+> See [`code_description.md`](code_description.md) for the full list of command-line arguments and output options.
+
 ---
 ## 🔧 Architecture of Project
 Project_2_Adaptive_control_Pitch_plane/  
