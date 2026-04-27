@@ -274,25 +274,13 @@ $$
 we have
 
 $$
-\dot{r}
-=
-\dot{e}_q
-+
-\lambda_\alpha\dot{e}_\alpha.
+\dot{r}=\dot{e}_q+\lambda_\alpha\dot{e}_\alpha.
 $$
 
 Using the plant dynamics, this can be written as
 
 $$
-\boxed{
-\dot{r}
-=
-F(s)
-+
-B(s)\delta_e
-+
-Y(s)\Delta C_{L_\alpha}
-}.
+\boxed{\dot{r}=F(s)+B(s)\delta_e+Y(s)\Delta C_{L_\alpha}}.
 $$
 
 The following functions are used.
@@ -300,145 +288,62 @@ The following functions are used.
 The pitch-rate dynamics is decomposed as
 
 $$
-\dot{q}
-=
-f_q(s)
-+
-b_q(s)\delta_e,
+\dot{q}=f_q(s)+b_q(s)\delta_e,
 $$
 
 where
 
 $$
-\boxed{
-f_q(s)
-=
-\frac{1}{2I_y}
-\rho V^2S\bar{c}
-\left[
-C_{m0}
-+
-C_{m\alpha}\alpha
-+
-C_{mq}\frac{q\bar{c}}{2V}
-\right]
-}
+\boxed{f_q(s)=\frac{1}{2I_y}\rho V^2S\bar{c}\left[C_{m0}+C_{m\alpha}\alpha+C_{mq}\frac{q\bar{c}}{2V}\right]}
 $$
 
 and
 
 $$
-\boxed{
-b_q(s)
-=
-\frac{1}{2I_y}
-\rho V^2S\bar{c}C_{m\delta_e}
-}.
+\boxed{b_q(s)=\frac{1}{2I_y}\rho V^2S\bar{c}C_{m\delta_e}}.
 $$
 
 The angle-of-attack dynamics is decomposed as
 
-$$
-\dot{\alpha}
-=
-f_\alpha(s)
-+
-b_\alpha(s)\delta_e
-+
-Y_\alpha(s)\Delta C_{L_\alpha}.
+$$\dot{\alpha}=f_\alpha(s)+b_\alpha(s)\delta_e+Y_\alpha(s)\Delta C_{L_\alpha}.
 $$
 
 The nominal part is
 
 $$
-\boxed{
-f_\alpha(s)
-=
-q
--
-\frac{
-T\sin\alpha
-+
-L_{clean,no\_de}
--
-mg\cos(\theta-\alpha)
-}{
-mV
-}
-},
+\boxed{f_\alpha(s)=q-\frac{T\sin\alpha+L_{clean,no\_de}-mg\cos(\theta-\alpha)}{mV}},
 $$
 
 where
 
 $$
-L_{clean,no\_de}
-=
-\frac{1}{2}\rho V^2S
-\left(
-C_{L0}
-+
-C_{L_\alpha}^{clean}\alpha
-\right).
+L_{clean,no\_de}=\frac{1}{2}\rho V^2S\left(C_{L0}+C_{L_\alpha}^{clean}\alpha\right).
 $$
 
 The elevator effectiveness in $\alpha$-dynamics is
 
 $$
-\boxed{
-b_\alpha(s)
-=
--
-\frac{1}{2}
-\frac{\rho VS}{m}
-C_{L_{\delta_e}}
-}.
+\boxed{b_\alpha(s)=-\frac{1}{2}\frac{\rho VS}{m}C_{L_{\delta_e}}}.
 $$
 
 The icing regressor in $\alpha$-dynamics is
 
 $$
-\boxed{
-Y_\alpha(s)
-=
--
-\frac{1}{2}
-\frac{\rho VS}{m}
-\alpha
-}.
+\boxed{Y_\alpha(s)=-\frac{1}{2}\frac{\rho VS}{m}\alpha}.
 $$
 
 Therefore, for the reduced $r$-dynamics,
 
 $$
-\boxed{
-F(s)
-=
-f_q(s)
-+
-\lambda_\alpha f_\alpha(s)
--
-\dot{q}_{ref}
--
-\lambda_\alpha\dot{\alpha}_{ref}
-},
+\boxed{F(s)=f_q(s)+\lambda_\alpha f_\alpha(s)-\dot{q}_{ref}-\lambda_\alpha\dot{\alpha}_{ref}},
 $$
 
 $$
-\boxed{
-B(s)
-=
-b_q(s)
-+
-\lambda_\alpha b_\alpha(s)
-},
+\boxed{B(s)=b_q(s)+\lambda_\alpha b_\alpha(s)},
 $$
 
 $$
-\boxed{
-Y(s)
-=
-\lambda_\alpha Y_\alpha(s)
-}.
+\boxed{Y(s)=\lambda_\alpha Y_\alpha(s)}.
 $$
 
 For constant references,
@@ -454,9 +359,7 @@ $$
 so
 
 $$
-F(s)
-=
-f_q(s)+\lambda_\alpha f_\alpha(s).
+F(s)=f_q(s)+\lambda_\alpha f_\alpha(s).
 $$
 
 ---
