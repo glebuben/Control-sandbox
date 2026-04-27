@@ -13,48 +13,47 @@ Simulation flags
 Plot / output flags  (all OFF by default — opt in to what you want)
 --------------------------------------------------------------------
   --plots             Time-series matplotlib plots (comparison of both runs)
-  --phase             Phase portraits saved to <out-dir>/phase_portraits/
-  --lyapunov          Lyapunov function value plots saved to <out-dir>/
+  --phase             Phase portraits saved to <figures-dir>/phase_portraits/
+  --lyapunov          Lyapunov function value plots saved to <figures-dir>/
   --animation         Open interactive pygame aircraft window
   --animate-controller {adaptive,baseline,both}
                       Which controller to show in animation/GIF (default: adaptive)
   --lya-scale {log,linear}
-                      Y-axis scale for Lyapunov strip in animation (default: log)
+                      Y-axis scale for Lyapunov strip and static plots (default: log)
   --gif               Export animated GIF of aircraft view
   --gif-step INT      Sample every N-th frame for GIF (default 15)
   --gif-fps  INT      GIF frame rate (default 25)
 
 Output directories
 ------------------
-  --out-dir STR       Root output directory (default "results")
-                      Plots are written to <out-dir>/figures/
-                      Animations and GIFs are written to <out-dir>/animation/
+  --figures-dir STR   Directory for all static plots (default "figures")
+                      Phase portraits go into <figures-dir>/phase_portraits/
+  --anim-dir STR      Directory for animations and GIFs (default "animations")
 
-Controller mode flags
----------------------
-  --compare           (legacy) same as default — always runs both controllers
-  --adaptation        (legacy) run adaptive only, skip baseline for speed
+Controller mode flags (legacy)
+------------------------------
+  --compare           Same as default — always runs both controllers
+  --adaptation        Run adaptive controller only (baseline skipped)
 
 Examples
 --------
-  python main.py                             # run both, no plots
-  python main.py --plots --lyapunov          # time-series + Lyapunov plots
-  python main.py --phase                     # phase portraits only
-  python main.py --gif                       # GIF only (no window)
-  python main.py --animation --gif                          # adaptive window + GIF
+  python main.py                              # run both, print summaries only
+  python main.py --plots --lyapunov           # time-series + Lyapunov plots
+  python main.py --phase                      # phase portraits only
+  python main.py --gif                        # GIF only (no window)
+  python main.py --animation --gif            # adaptive window + GIF
   python main.py --animation --animate-controller baseline  # baseline window
   python main.py --gif --animate-controller both            # GIF for both
-  python main.py --plots --phase --lyapunov --gif   # everything static + GIF
-                                                    #   figures  -> results/figures/
-                                                    #   GIF      -> results/animation/
+  python main.py --plots --phase --lyapunov --gif           # everything
+  python main.py --plots --figures-dir my_figures --anim-dir my_anims
 """
 
 import argparse, os, sys
 import numpy as np
 
-from simulation            import SimConfig, run_simulation
-from visualization         import plot_matplotlib
-from visualization_phase   import plot_phase_portraits
+from simulation             import SimConfig, run_simulation
+from visualization          import plot_matplotlib
+from visualization_phase    import plot_phase_portraits
 from visualization_lyapunov import plot_lyapunov
 from visualization_aircraft import run_aircraft_view, export_gif
 import pygame
@@ -72,13 +71,18 @@ def _parse():
     p.add_argument("--V-trim",     type=float, default=60.0)
     p.add_argument("--alpha-ref",  type=float, default=None)
     p.add_argument("--dt",         type=float, default=0.01)
-    p.add_argument("--out-dir",    type=str,   default="results")
 
-    # Output selection  (opt-in)
+    # Output directories
+    p.add_argument("--figures-dir", type=str, default="figures",
+                   help="Directory for all static plots (default: figures)")
+    p.add_argument("--anim-dir",    type=str, default="animations",
+                   help="Directory for animations and GIFs (default: animations)")
+
+    # Output selection (opt-in)
     p.add_argument("--plots",      action="store_true",
                    help="Time-series matplotlib plots")
     p.add_argument("--phase",      action="store_true",
-                   help="Phase portraits (saved in <out-dir>/phase_portraits/)")
+                   help="Phase portraits (saved in <figures-dir>/phase_portraits/)")
     p.add_argument("--lyapunov",   action="store_true",
                    help="Lyapunov function value plots")
     p.add_argument("--animation",  action="store_true",
@@ -92,21 +96,18 @@ def _parse():
     p.add_argument("--animate-controller", type=str, default="adaptive",
                    choices=["adaptive", "baseline", "both"],
                    help="Controller to show in animation/GIF (default: adaptive)")
-    p.add_argument("--lya-scale", type=str, default="log",
+    p.add_argument("--lya-scale",  type=str, default="log",
                    choices=["log", "linear"],
-                   help="Y-axis scale for Lyapunov strip in animation (default: log)")
+                   help="Y-axis scale for Lyapunov strip and static plots (default: log)")
 
-    # Legacy controller-mode flags (kept for backwards compatibility)
-    p.add_argument("--adaptation", action="store_true",
-                   help="(legacy) run adaptive controller only")
-    p.add_argument("--compare",    action="store_true",
-                   help="(legacy) run both controllers and compare — this is the default")
-
-    # Legacy disable flags (kept for backwards compatibility)
-    p.add_argument("--no-matplotlib", action="store_true",
-                   help="(legacy) suppress all matplotlib output")
-    p.add_argument("--no-pygame",     action="store_true",
-                   help="(legacy) suppress pygame window")
+    # Legacy flags
+    p.add_argument("--adaptation",    action="store_true")
+    p.add_argument("--compare",       action="store_true")
+    p.add_argument("--no-matplotlib", action="store_true")
+    p.add_argument("--no-pygame",     action="store_true")
+    # Legacy --out-dir kept silently so old command lines don't crash
+    p.add_argument("--out-dir",       type=str, default=None,
+                   help=argparse.SUPPRESS)
 
     return p.parse_args()
 
@@ -171,9 +172,8 @@ def main():
     print("\n--- ADAPTIVE SUMMARY ---")
     _summary(res_adp,  "ADAPTIVE")
 
-    os.makedirs(args.out_dir, exist_ok=True)
-    figures_dir = os.path.join(args.out_dir, "figures")
-    anim_dir    = os.path.join(args.out_dir, "animation")
+    figures_dir = args.figures_dir
+    anim_dir    = args.anim_dir
 
     # ---- Legacy --no-matplotlib flag overrides new flags ---------------
     if args.no_matplotlib:
@@ -181,8 +181,8 @@ def main():
 
     # ---- Time-series plots ---------------------------------------------
     if args.plots:
-        print("\n[plots] Generating time-series plots ...")
         os.makedirs(figures_dir, exist_ok=True)
+        print(f"\n[plots] Generating time-series plots -> {figures_dir}/")
         plot_matplotlib(
             res_adp,
             res_base=res_base,
@@ -192,13 +192,13 @@ def main():
     # ---- Phase portraits -----------------------------------------------
     if args.phase:
         phase_dir = os.path.join(figures_dir, "phase_portraits")
-        print(f"\n[phase] Generating phase portraits → {phase_dir}/")
+        print(f"\n[phase] Generating phase portraits -> {phase_dir}/")
         plot_phase_portraits(res_adp, res_base, save_dir=phase_dir)
 
     # ---- Lyapunov plots ------------------------------------------------
     if args.lyapunov:
         os.makedirs(figures_dir, exist_ok=True)
-        print(f"\n[lyapunov] Generating Lyapunov plots → {figures_dir}/")
+        print(f"\n[lyapunov] Generating Lyapunov plots -> {figures_dir}/")
         plot_lyapunov(res_adp, res_base=res_base, save_dir=figures_dir,
                       lya_scale=args.lya_scale)
 
