@@ -130,9 +130,10 @@ $$
 The piecewise icing model is
 
 $$
-\Delta C_{L_\alpha}(t)
+\Delta C_{L_{\alpha}}(t)
 =\begin{cases}
-0, & t<t_{ice},\\\Delta C_{L_\alpha}^{ice}, & t\geq t_{ice}.
+0, & t < t_{ice},\\\\
+\Delta C_{L_{\alpha}}^{ice}, & t \geq t_{ice}.
 \end{cases}
 $$
 
