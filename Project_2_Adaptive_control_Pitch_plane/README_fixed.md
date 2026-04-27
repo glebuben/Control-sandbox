@@ -214,15 +214,15 @@ $$\boxed{\mathcal{V} = \frac{1}{2}r^2 + \frac{1}{2\gamma_C}\widetilde{\Delta C}_
 
 Adaptive mode activates when errors exceed thresholds for `detect_steps` consecutive samples:
 
-$$\text{adaptive\_mode} = \begin{cases}
+$$\text{adaptive mode} = \begin{cases}
 \text{True}, & |e_\alpha| > e_{\alpha,\text{thr}} \;\land\; |r| > r_{\text{thr}} \;\text{for}\; N \geq \text{detect\_steps} \\
 \text{False}, & \text{otherwise}
 \end{cases}$$
 
 Projection and saturation enforce physical bounds:
 
-$$\widehat{\Delta C}_{L\alpha} \leftarrow \text{clip}\big(\widehat{\Delta C}_{L\alpha},\, \Delta C_{\min},\, 0\big), \qquad
-\delta_e \leftarrow \text{clip}\big(\delta_e,\, -\delta_{e,\max},\, +\delta_{e,\max}\big)$$
+$$\widehat{\Delta C_{L\alpha}} \leftarrow \text{clip}\left(\widehat{\Delta C_{L\alpha}},\, \Delta C_{\min},\, 0\right), \qquad
+\delta_e \leftarrow \text{clip}\left(\delta_e,\, -\delta_{e,\max},\, +\delta_{e,\max}\right)$$
 
 | Symbol | Meaning | Units |
 |--------|---------|-------|
@@ -231,8 +231,6 @@ $$\widehat{\Delta C}_{L\alpha} \leftarrow \text{clip}\big(\widehat{\Delta C}_{L\
 | $\text{detect\_steps}$ | Consecutive detections to trigger | – |
 | $\Delta C_{\min}$ | Lower projection bound for estimate | rad⁻¹ |
 | $\delta_{e,\max}$ | Elevator saturation limit | rad |
-
----
 
 ## 4. Parameters Reference
 
