@@ -214,23 +214,24 @@ $$\boxed{\mathcal{V} = \frac{1}{2}r^2 + \frac{1}{2\gamma_C}\widetilde{\Delta C}_
 
 Adaptive mode activates when errors exceed thresholds for `detect_steps` consecutive samples:
 
-$$\text{adaptive mode} = \begin{cases}
-\text{True}, & |e_\alpha| > e_{\alpha,\text{thr}} \;\land\; |r| > r_{\text{thr}} \;\text{for}\; N \geq \text{detect\_steps} \\
-\text{False}, & \text{otherwise}
-\end{cases}$$
+**Switching condition:**
+- Activate if: $|e_{\alpha}| > e_{\alpha, \text{thr}}$ AND $|r| > r_{\text{thr}}$ for $N \geq N_{\text{detect}}$ steps
+- Deactivate otherwise
 
-Projection and saturation enforce physical bounds:
+**Projection and saturation:**
 
-$$\widehat{\Delta C_{L\alpha}} \leftarrow \text{clip}\left(\widehat{\Delta C_{L\alpha}},\, \Delta C_{\min},\, 0\right), \qquad
-\delta_e \leftarrow \text{clip}\left(\delta_e,\, -\delta_{e,\max},\, +\delta_{e,\max}\right)$$
+$$\widehat{\Delta C_{L\alpha}} \leftarrow \text{clip}(\widehat{\Delta C_{L\alpha}}, \Delta C_{\min}, 0)$$
+
+$$\delta_e \leftarrow \text{clip}(\delta_e, -\delta_{e,\max}, +\delta_{e,\max})$$
 
 | Symbol | Meaning | Units |
 |--------|---------|-------|
-| $e_{\alpha,\text{thr}}$ | AoA error detection threshold | rad |
+| $e_{\alpha, \text{thr}}$ | AoA error detection threshold | rad |
 | $r_{\text{thr}}$ | Filtered error detection threshold | rad/s |
-| $\text{detect\_steps}$ | Consecutive detections to trigger | – |
+| $N_{\text{detect}}$ | Consecutive detections to trigger | – |
 | $\Delta C_{\min}$ | Lower projection bound for estimate | rad⁻¹ |
 | $\delta_{e,\max}$ | Elevator saturation limit | rad |
+---
 
 ## 4. Parameters Reference
 
