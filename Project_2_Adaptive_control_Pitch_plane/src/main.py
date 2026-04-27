@@ -18,6 +18,8 @@ Plot / output flags  (all OFF by default — opt in to what you want)
   --animation         Open interactive pygame aircraft window
   --animate-controller {adaptive,baseline,both}
                       Which controller to show in animation/GIF (default: adaptive)
+  --lya-scale {log,linear}
+                      Y-axis scale for Lyapunov strip in animation (default: log)
   --gif               Export animated GIF of aircraft view
   --gif-step INT      Sample every N-th frame for GIF (default 15)
   --gif-fps  INT      GIF frame rate (default 25)
@@ -86,6 +88,9 @@ def _parse():
     p.add_argument("--animate-controller", type=str, default="adaptive",
                    choices=["adaptive", "baseline", "both"],
                    help="Controller to show in animation/GIF (default: adaptive)")
+    p.add_argument("--lya-scale", type=str, default="log",
+                   choices=["log", "linear"],
+                   help="Y-axis scale for Lyapunov strip in animation (default: log)")
 
     # Legacy controller-mode flags (kept for backwards compatibility)
     p.add_argument("--adaptation", action="store_true",
@@ -186,7 +191,8 @@ def main():
     # ---- Lyapunov plots ------------------------------------------------
     if args.lyapunov:
         print(f"\n[lyapunov] Generating Lyapunov plots → {args.out_dir}/")
-        plot_lyapunov(res_adp, res_base=res_base, save_dir=args.out_dir)
+        plot_lyapunov(res_adp, res_base=res_base, save_dir=args.out_dir,
+                      lya_scale=args.lya_scale)
 
     # ---- Determine which result(s) to animate -------------------------
     _anim_ctrl = args.animate_controller
@@ -206,7 +212,8 @@ def main():
             )
             print(f"\n[gif] Exporting {_lbl} GIF -> {_gif_path}")
             export_gif(_res, _gif_path,
-                       step=args.gif_step, fps=args.gif_fps, label=_lbl)
+                       step=args.gif_step, fps=args.gif_fps, label=_lbl,
+                       lya_scale=args.lya_scale)
         pygame.quit()
 
     # ---- Interactive aircraft window -----------------------------------
@@ -215,7 +222,8 @@ def main():
         for _res, _lbl in _anim_runs:
             _gif_path = os.path.join(args.out_dir, f"aircraft_{_lbl.lower()}.gif")
             print(f"\n[animation] Opening {_lbl} aircraft window ...")
-            run_aircraft_view(_res, label=_lbl, gif_path=_gif_path)
+            run_aircraft_view(_res, label=_lbl, gif_path=_gif_path,
+                              lya_scale=args.lya_scale)
 
 
 if __name__ == "__main__":

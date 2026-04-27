@@ -94,14 +94,28 @@ import pygame.gfxdraw
 # Lyapunov helpers
 # ---------------------------------------------------------------------------
 def _compute_lyapunov_history(results: dict) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
-    """Return (V_total, V_track, V_est) arrays over the full simulation."""
-    r         = results["r"]
-    hat       = results["delta_CL_alpha_hat"]
-    true_d    = results["C_La_iced"] - results["C_La_clean"]
-    V_track   = 0.5 * r ** 2
-    tilde     = hat - true_d
-    V_est     = 0.5 / GAMMA_C * tilde ** 2
-    V_total   = V_track + V_est
+    """
+    Return (V_total, V_track, V_est) arrays over the full simulation.
+
+    Estimation error tilde = hat - true_d* is only meaningful once icing has
+    started.  Before t_ice the true degradation is 0 (clean wing), and hat=0
+    by initialisation, so tilde must be 0 as well.  Using the constant
+    true_d = C_La_iced - C_La_clean for all time would give a spurious
+    non-zero V_est before icing onset.
+    """
+    t      = results["t"]
+    t_ice  = results["t_ice"]
+    r      = results["r"]
+    hat    = results["delta_CL_alpha_hat"]
+    true_d = results["C_La_iced"] - results["C_La_clean"]
+
+    # True delta is 0 before icing onset, then equals true_d afterwards
+    true_d_t = np.where(t >= t_ice, true_d, 0.0)
+
+    V_track = 0.5 * r ** 2
+    tilde   = hat - true_d_t          # zero before icing, decays to 0 after
+    V_est   = 0.5 / GAMMA_C * tilde ** 2
+    V_total = V_track + V_est
     return V_total, V_track, V_est
 
 
@@ -294,108 +308,152 @@ def _draw_hud(surf, results, frame, fonts, label: str):
 
 
 # ---------------------------------------------------------------------------
-# Lyapunov plot strip
+# Lyapunov plot strip  (linear or log10 scale, chosen via lya_scale)
 # ---------------------------------------------------------------------------
+LOG_FLOOR     = 1e-14          # log-scale floor (values below clip to bottom)
+LOG_FLOOR_LOG = math.log10(LOG_FLOOR)
+
+
 def _draw_lyapunov_strip(surf, lya_total, lya_track, lya_est,
-                          results, frame, fonts):
+                          results, frame, fonts, lya_scale: str = "log"):
     """
     Draw the Lyapunov strip below the scene area.
-    Shows V_total, ½r², and estimation term as scrolling time-series lines,
-    with a vertical cursor at the current frame and event markers.
+
+    lya_scale : "log"    — log10 Y axis, floor at LOG_FLOOR = 1e-14
+                "linear" — linear Y axis, autoscaled to current max
+
+    Three series are plotted up to the current frame:
+        blue  — V_total  = V_track + V_est
+        green — V_track  = ½ r²
+        red   — V_est    = (1/2γ) ΔC̃²
     """
     t     = results["t"]
     t_ice = results["t_ice"]
     N     = len(t)
 
-    # Strip pixel rectangle (inside the window)
+    # Strip pixel rectangle
     px, py = 0, SCENE_H
     pw, ph = W, PLOT_H
-
-    # Inner plot margins
-    ml, mr, mt, mb = 58, 12, 18, 24   # left, right, top, bottom margin
-
+    ml, mr, mt, mb = 72, 14, 20, 26
     plot_x = px + ml
     plot_y = py + mt
     plot_w = pw - ml - mr
     plot_h = ph - mt - mb
 
-    # Background
+    # Background + top border
     pygame.draw.rect(surf, PLOT_BG, (px, py, pw, ph))
-    pygame.draw.line(surf, PLOT_BORDER, (px, py), (px+pw, py), 1)  # top border
+    pygame.draw.line(surf, PLOT_BORDER, (px, py), (px+pw, py), 1)
 
     fxs = fonts["xs"]
 
-    # Y range: use symlog-like scale — find max of total up to current frame
-    V_window = lya_total[:frame+1]
-    V_max    = float(np.max(V_window)) if len(V_window) > 0 else 1.0
-    V_max    = max(V_max, 1e-8)
-    # Add 20% headroom
-    y_hi  = V_max * 1.25
-    y_lo  = 0.0
+    # ------------------------------------------------------------------
+    # Y axis setup — fixed to full-run range so axis never rescales
+    # ------------------------------------------------------------------
+    use_log = (lya_scale == "log")
+
+    if use_log:
+        V_max_all = max(float(np.max(lya_total)), LOG_FLOOR)
+        y_hi_log  = math.log10(V_max_all) + 0.5   # half-decade headroom
+        y_lo_log  = LOG_FLOOR_LOG                  # fixed floor at 1e-14
+
+        def _fy(v):
+            lv = math.log10(max(float(v), LOG_FLOOR))
+            return (lv - y_lo_log) / max(y_hi_log - y_lo_log, 1e-12)
+
+        def _ref_val_for_event():   # a value safely inside the axis range
+            return LOG_FLOOR
+
+    else:  # linear
+        V_max_all = max(float(np.max(lya_total)), 1e-30)
+        y_hi_lin  = V_max_all * 1.2
+        y_lo_lin  = 0.0
+
+        def _fy(v):
+            return (float(v) - y_lo_lin) / max(y_hi_lin - y_lo_lin, 1e-30)
+
+        def _ref_val_for_event():
+            return y_lo_lin
 
     def to_px(t_val, v_val):
-        """Map (time, value) to pixel coords inside the plot area."""
         fx = (t_val - t[0]) / max(t[-1] - t[0], 1e-9)
-        fy = (v_val - y_lo)  / max(y_hi - y_lo,  1e-12)
-        fy = max(0.0, min(1.0, fy))
+        fy = max(0.0, min(1.0, _fy(v_val)))
         x  = int(plot_x + fx * plot_w)
         y  = int(plot_y + plot_h - fy * plot_h)
         return x, y
 
-    # Grid lines — 4 horizontal
-    for gi in range(5):
-        gv   = y_lo + gi / 4 * (y_hi - y_lo)
-        _, gy = to_px(t[0], gv)
-        pygame.draw.line(surf, PLOT_GRID, (plot_x, gy), (plot_x+plot_w, gy), 1)
-        lbl = fxs.render(f"{gv:.2e}", True, HUD_DIM)
-        surf.blit(lbl, (px + 2, gy - 5))
+    # ------------------------------------------------------------------
+    # Grid lines
+    # ------------------------------------------------------------------
+    if use_log:
+        lo_decade = int(math.floor(y_lo_log))
+        hi_decade = int(math.ceil(y_hi_log))
+        for decade in range(lo_decade, hi_decade + 1):
+            if not (y_lo_log <= decade <= y_hi_log):
+                continue
+            _, gy = to_px(t[0], 10.0 ** decade)
+            pygame.draw.line(surf, PLOT_GRID, (plot_x, gy), (plot_x+plot_w, gy), 1)
+            lbl_str = f"1e{decade:+d}" if decade != 0 else "1"
+            surf.blit(fxs.render(lbl_str, True, HUD_DIM), (px + 2, gy - 5))
+        # Minor grid ×2, ×3, ×5
+        for decade in range(lo_decade, hi_decade):
+            for mult in (2, 3, 5):
+                lv = math.log10(mult) + decade
+                if not (y_lo_log <= lv <= y_hi_log):
+                    continue
+                _, gy = to_px(t[0], 10.0 ** lv)
+                pygame.draw.line(surf, (18, 22, 35), (plot_x, gy), (plot_x+plot_w, gy), 1)
+    else:
+        for gi in range(5):
+            gv = y_lo_lin + gi / 4 * (y_hi_lin - y_lo_lin)
+            _, gy = to_px(t[0], gv)
+            pygame.draw.line(surf, PLOT_GRID, (plot_x, gy), (plot_x+plot_w, gy), 1)
+            surf.blit(fxs.render(f"{gv:.2e}", True, HUD_DIM), (px + 2, gy - 5))
 
-    # Icing onset vertical marker
-    gx_ice, _ = to_px(t_ice, 0)
-    pygame.draw.line(surf, COL_ICE_MRK,
-                     (gx_ice, plot_y), (gx_ice, plot_y+plot_h), 1)
+    # ------------------------------------------------------------------
+    # Event markers
+    # ------------------------------------------------------------------
+    rv = _ref_val_for_event()
+    gx_ice, _ = to_px(t_ice, rv)
+    pygame.draw.line(surf, COL_ICE_MRK, (gx_ice, plot_y), (gx_ice, plot_y+plot_h), 1)
     surf.blit(fxs.render("ice", True, COL_ICE_MRK), (gx_ice+2, plot_y))
 
-    # Adaptive mode onset marker
     adp = results["adaptive_mode"]
     if np.any(adp):
-        idx_adp = int(np.argmax(adp))
-        gx_adp, _ = to_px(t[idx_adp], 0)
-        pygame.draw.line(surf, COL_ADP_MRK,
-                         (gx_adp, plot_y), (gx_adp, plot_y+plot_h), 1)
+        idx_adp   = int(np.argmax(adp))
+        gx_adp, _ = to_px(t[idx_adp], rv)
+        pygame.draw.line(surf, COL_ADP_MRK, (gx_adp, plot_y), (gx_adp, plot_y+plot_h), 1)
         surf.blit(fxs.render("adp", True, COL_ADP_MRK), (gx_adp+2, plot_y))
 
-    # Draw the three series up to current frame
+    # ------------------------------------------------------------------
+    # Series (clipped to plot area)
+    # ------------------------------------------------------------------
+    surf.set_clip(pygame.Rect(plot_x, plot_y, plot_w, plot_h))
+
     def draw_series(arr, color, lw=1):
-        pts = []
-        for i in range(frame + 1):
-            pts.append(to_px(t[i], arr[i]))
+        pts = [to_px(t[i], arr[i]) for i in range(frame + 1)]
         if len(pts) >= 2:
             pygame.draw.lines(surf, color, False, pts, lw)
 
     draw_series(lya_total, COL_TOTAL, lw=2)
     draw_series(lya_track, COL_TRACK, lw=1)
     draw_series(lya_est,   COL_EST,   lw=1)
+    surf.set_clip(None)
 
-    # Current-frame cursor
-    cx_cur, _ = to_px(t[frame], 0)
-    pygame.draw.line(surf, COL_CURSOR,
-                     (cx_cur, plot_y), (cx_cur, plot_y+plot_h), 1)
-
-    # Plot border
+    # ------------------------------------------------------------------
+    # Cursor + border
+    # ------------------------------------------------------------------
+    cx_cur, _ = to_px(t[frame], rv)
+    pygame.draw.line(surf, COL_CURSOR, (cx_cur, plot_y), (cx_cur, plot_y+plot_h), 1)
     pygame.draw.rect(surf, PLOT_BORDER, (plot_x, plot_y, plot_w, plot_h), 1)
 
-    # Y-axis label (rotated)
-    lbl = fxs.render("V(t)", True, HUD_DIM)
+    # Y-axis label
+    scale_lbl = "log₁₀ V(t)" if use_log else "V(t)"
+    lbl   = fxs.render(scale_lbl, True, HUD_DIM)
     lbl_r = pygame.transform.rotate(lbl, 90)
     surf.blit(lbl_r, (px + 2, plot_y + plot_h//2 - lbl_r.get_height()//2))
 
-    # Legend (top-right)
-    leg_items = [
-        ("V total", COL_TOTAL),
-        ("½r²",     COL_TRACK),
-        ("est",     COL_EST),
-    ]
+    # Legend
+    leg_items = [("V total", COL_TOTAL), ("½r²", COL_TRACK), ("est", COL_EST)]
     lx = plot_x + plot_w - 4
     ly = plot_y + 3
     for leg_lbl, leg_col in reversed(leg_items):
@@ -404,6 +462,13 @@ def _draw_lyapunov_strip(surf, lya_total, lya_track, lya_est,
         surf.blit(ls, (lx, ly))
         pygame.draw.line(surf, leg_col, (lx-20, ly+5), (lx-4, ly+5), 2)
 
+    # Scale indicator + current value
+    scale_tag = fxs.render(f"[{lya_scale}]", True, HUD_DIM)
+    surf.blit(scale_tag, (plot_x + 4, plot_y + 3))
+    v_now = lya_total[frame]
+    vstr  = fxs.render(f"V = {v_now:.3e}", True, COL_TOTAL)
+    surf.blit(vstr, (plot_x + plot_w - vstr.get_width() - 4,
+                     plot_y + plot_h - vstr.get_height() - 2))
 
 # ---------------------------------------------------------------------------
 # Footer bar
@@ -452,7 +517,8 @@ def _draw_footer(surf, results, frame, fonts, speed, playing):
 # ---------------------------------------------------------------------------
 def render_frame(surf, overlay, results, frame, fonts,
                  lya_total, lya_track, lya_est,
-                 label: str = "Adaptive", scale: float = 1.0):
+                 label: str = "Adaptive", scale: float = 1.0,
+                 lya_scale: str = "log"):
     t_ice    = results["t_ice"]
     t_now    = results["t"][frame]
     theta    = float(results["theta"][frame])
@@ -471,7 +537,7 @@ def render_frame(surf, overlay, results, frame, fonts,
 
     # Lyapunov strip
     _draw_lyapunov_strip(surf, lya_total, lya_track, lya_est,
-                          results, frame, fonts)
+                          results, frame, fonts, lya_scale=lya_scale)
 
     # Footer
     from visualization_aircraft import _playing_ref, _speed_ref
@@ -500,22 +566,24 @@ def _make_fonts():
 # GIF export  (headless-safe)
 # ---------------------------------------------------------------------------
 def export_gif(results: dict,
-               path:    str,
-               step:    int   = 15,
-               fps:     int   = 25,
-               label:   str   = "Adaptive",
-               scale:   float = 1.0) -> None:
+               path:      str,
+               step:      int   = 15,
+               fps:       int   = 25,
+               label:     str   = "Adaptive",
+               scale:     float = 1.0,
+               lya_scale: str   = "log") -> None:
     """
     Render the full simulation to an animated GIF.
 
     Parameters
     ----------
-    results : simulation results dict
-    path    : output .gif file path
-    step    : take every N-th frame (reduces file size)
-    fps     : output frames per second
-    label   : controller label shown in HUD ("Adaptive" or "Baseline")
-    scale   : aircraft scale factor
+    results   : simulation results dict
+    path      : output .gif file path
+    step      : take every N-th frame (reduces file size)
+    fps       : output frames per second
+    label     : controller label shown in HUD ("Adaptive" or "Baseline")
+    scale     : aircraft scale factor
+    lya_scale : "log" or "linear" — Y axis scale for Lyapunov strip
     """
     try:
         from PIL import Image
@@ -547,7 +615,7 @@ def export_gif(results: dict,
     for i, fi in enumerate(frame_indices):
         render_frame(surf, overlay, results, fi, fonts,
                      lya_total, lya_track, lya_est,
-                     label=label, scale=scale)
+                     label=label, scale=scale, lya_scale=lya_scale)
         raw = pygame.surfarray.array3d(surf)
         img = Image.fromarray(raw.swapaxes(0, 1))
         img = img.resize((W // 2, H // 2), Image.LANCZOS)
@@ -575,10 +643,12 @@ def export_gif(results: dict,
 # ---------------------------------------------------------------------------
 class AircraftViewer:
     def __init__(self, results: dict,
-                 label:    str = "Adaptive",
-                 gif_path: str = "results/aircraft_sim.gif"):
-        self.results  = results
-        self.label    = label
+                 label:     str = "Adaptive",
+                 gif_path:  str = "results/aircraft_sim.gif",
+                 lya_scale: str = "log"):
+        self.results   = results
+        self.label     = label
+        self.lya_scale = lya_scale
         self.N        = len(results["t"])
         self.frame    = 0
         self.playing  = False
@@ -625,7 +695,7 @@ class AircraftViewer:
                         self._screenshot()
                     elif k == pygame.K_g:
                         export_gif(self.results, self.gif_path,
-                                   label=self.label)
+                                   label=self.label, lya_scale=self.lya_scale)
                 elif ev.type == pygame.MOUSEBUTTONDOWN:
                     self._handle_scrubber_click(ev.pos)
 
@@ -640,7 +710,7 @@ class AircraftViewer:
             render_frame(self.screen, self.overlay, self.results,
                          self.frame, self.fonts,
                          self.lya_total, self.lya_track, self.lya_est,
-                         label=self.label)
+                         label=self.label, lya_scale=self.lya_scale)
             pygame.display.flip()
             self.clock.tick(60)
 
@@ -666,18 +736,21 @@ class AircraftViewer:
 # Public API
 # ---------------------------------------------------------------------------
 def run_aircraft_view(results: dict,
-                      label:    str = "Adaptive",
-                      gif_path: str = "results/aircraft_sim.gif") -> None:
+                      label:     str = "Adaptive",
+                      gif_path:  str = "results/aircraft_sim.gif",
+                      lya_scale: str = "log") -> None:
     """
     Open the interactive aircraft viewer window.
 
     Parameters
     ----------
-    results  : simulation results dict
-    label    : "Adaptive" or "Baseline" — shown in HUD and window title
-    gif_path : path used when pressing G inside the viewer
+    results   : simulation results dict
+    label     : "Adaptive" or "Baseline" — shown in HUD and window title
+    gif_path  : path used when pressing G inside the viewer
+    lya_scale : "log" or "linear" — Y axis scale for Lyapunov strip
     """
-    viewer = AircraftViewer(results, label=label, gif_path=gif_path)
+    viewer = AircraftViewer(results, label=label, gif_path=gif_path,
+                            lya_scale=lya_scale)
     viewer.run()
 
 
@@ -699,6 +772,9 @@ if __name__ == "__main__":
                     help="Export GIF only, do not open interactive window")
     ap.add_argument("--gif-step",     type=int,   default=15)
     ap.add_argument("--gif-fps",      type=int,   default=25)
+    ap.add_argument("--lya-scale",    type=str,   default="log",
+                    choices=["log", "linear"],
+                    help="Y-axis scale for Lyapunov strip (default: log)")
     ap.add_argument("--out-dir",      type=str,   default="results")
     args = ap.parse_args()
 
@@ -714,13 +790,16 @@ if __name__ == "__main__":
 
     gif_path = os.path.join(args.out_dir, f"aircraft_{args.controller}.gif")
 
+    lya_scale = args.lya_scale
+
     if args.gif_only:
         pygame.init()
         export_gif(res, gif_path, step=args.gif_step,
-                   fps=args.gif_fps, label=label)
+                   fps=args.gif_fps, label=label, lya_scale=lya_scale)
         pygame.quit()
     else:
         pygame.init()
         export_gif(res, gif_path, step=args.gif_step,
-                   fps=args.gif_fps, label=label)
-        run_aircraft_view(res, label=label, gif_path=gif_path)
+                   fps=args.gif_fps, label=label, lya_scale=lya_scale)
+        run_aircraft_view(res, label=label, gif_path=gif_path,
+                          lya_scale=lya_scale)

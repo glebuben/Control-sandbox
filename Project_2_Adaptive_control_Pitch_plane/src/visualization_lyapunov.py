@@ -66,6 +66,8 @@ def compute_lyapunov(results: dict,
     -------
     V_t : np.ndarray  shape (N,)
     """
+    t          = results["t"]
+    t_ice      = results["t_ice"]
     r          = results["r"]                     # filtered error [rad/s]
     delta_hat  = results["delta_CL_alpha_hat"]    # estimate
     true_delta = results["C_La_iced"] - results["C_La_clean"]  # true ΔC_La
@@ -73,7 +75,10 @@ def compute_lyapunov(results: dict,
     V_tracking   = 0.5 * r ** 2
 
     if use_adaptation:
-        tilde        = delta_hat - true_delta          # estimation error
+        # True degradation is 0 before icing onset — hat=0 there too,
+        # so estimation error must be 0 before t_ice (not true_delta).
+        true_delta_t = np.where(t >= t_ice, true_delta, 0.0)
+        tilde        = delta_hat - true_delta_t        # estimation error
         V_estimation = 0.5 / gamma_C * tilde ** 2
     else:
         V_estimation = np.zeros_like(r)                # no adaptation term
@@ -84,21 +89,33 @@ def compute_lyapunov(results: dict,
 # ---------------------------------------------------------------------------
 # Public API
 # ---------------------------------------------------------------------------
+
+def _set_yscale(ax, lya_scale: str):
+    """Apply the chosen Y scale to a matplotlib Axes."""
+    if lya_scale == "log":
+        ax.set_yscale("log")
+        ax.set_ylim(bottom=1e-14)
+    else:
+        ax.set_yscale("linear")
+
+
 def plot_lyapunov(
     results: dict,
     res_base: dict | None = None,
     gamma_C: float = DEFAULT_GAMMA_C,
     save_dir: str = "results",
+    lya_scale: str = "log",
 ) -> None:
     """
     Produce and save the Lyapunov function plot.
 
     Parameters
     ----------
-    results  : adaptive simulation results dict
-    res_base : baseline simulation results dict (optional)
-    gamma_C  : adaptation gain used in the controller
-    save_dir : output directory
+    results   : adaptive simulation results dict
+    res_base  : baseline simulation results dict (optional)
+    gamma_C   : adaptation gain used in the controller
+    save_dir  : output directory
+    lya_scale : "log" or "linear" — Y axis scale for all three panels
     """
     os.makedirs(save_dir, exist_ok=True)
 
@@ -149,7 +166,7 @@ def plot_lyapunov(
                     label="Baseline  V(t)  (½r² only)", zorder=3)
 
         ax.set_ylabel("V(t)  [rad²]", fontsize=9)
-        ax.set_yscale("symlog", linthresh=1e-6)
+        _set_yscale(ax, lya_scale)
         ax.axvline(t_ice, color="#e74c3c", lw=1.2, ls="-.", alpha=0.7, label=f"Icing onset")
         _shade_icing(ax, t, t_ice)
         _draw_adapt_line(ax, results)
@@ -168,7 +185,7 @@ def plot_lyapunov(
                     color="#e67e22", lw=1.6, ls="--", alpha=0.8, label="Baseline  ½r²")
 
         ax.set_ylabel("½r²  [rad²/s²]", fontsize=9)
-        ax.set_yscale("symlog", linthresh=1e-8)
+        _set_yscale(ax, lya_scale)
         ax.axvline(t_ice, color="#e74c3c", lw=1.2, ls="-.", alpha=0.7)
         _shade_icing(ax, t, t_ice)
         _draw_adapt_line(ax, results)
@@ -195,7 +212,7 @@ def plot_lyapunov(
 
         ax.set_ylabel("(1/2γ)·ΔC̃²", fontsize=9)
         ax.set_xlabel("Time  [s]", fontsize=9)
-        ax.set_yscale("symlog", linthresh=1e-8)
+        _set_yscale(ax, lya_scale)
         ax.axvline(t_ice, color="#e74c3c", lw=1.2, ls="-.", alpha=0.7, label="Icing onset")
         _shade_icing(ax, t, t_ice)
         _draw_adapt_line(ax, results)
@@ -244,6 +261,9 @@ if __name__ == "__main__":
     ap.add_argument("--t-ice",    type=float, default=10.0)
     ap.add_argument("--severity", type=float, default=0.30)
     ap.add_argument("--gamma-C",  type=float, default=DEFAULT_GAMMA_C)
+    ap.add_argument("--lya-scale", type=str,  default="log",
+                    choices=["log", "linear"],
+                    help="Y-axis scale (default: log)")
     ap.add_argument("--out-dir",  type=str,   default="results")
     args = ap.parse_args()
 
@@ -258,4 +278,4 @@ if __name__ == "__main__":
     res_base = run_simulation(config=cfg, use_adaptation=False)
 
     plot_lyapunov(res_adp, res_base=res_base, gamma_C=args.gamma_C,
-                  save_dir=args.out_dir)
+                  save_dir=args.out_dir, lya_scale=args.lya_scale)
