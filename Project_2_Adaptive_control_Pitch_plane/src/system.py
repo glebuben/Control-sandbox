@@ -1,428 +1,159 @@
+"""
+system.py
+---------
+Nonlinear longitudinal aircraft dynamics.
+
+State vector:  x = [V, alpha, q, theta]
+Control input: u = [delta_e, delta_t]
+
+Equations of motion (body-axis, flat Earth, gamma = theta - alpha):
+
+    V_dot     = (1/m)  [ T*cos(alpha) - D - m*g*sin(gamma) ]
+    alpha_dot = q - (1/(m*V)) [ T*sin(alpha) + L - m*g*cos(gamma) ]
+    q_dot     = (1/I_y) [ 0.5*rho*V^2*S*c_bar * C_m ]
+    theta_dot = q
+
+Aerodynamic coefficients:
+    C_L = C_L0 + C_La*alpha + C_Lde*delta_e
+    C_D = C_D0 + (C_La*alpha + C_Lde*delta_e)^2 / (pi*e*AR)
+    C_m = C_m0 + C_ma*alpha + C_mq*(q*c_bar)/(2*V) + C_mde*delta_e
+
+Icing model:
+    At t >= t_ice, C_La is reduced by |delta_CL_alpha_ice|.
+
+Parameters match the notebook (Section 15):
+    I_y0=1800, C_m0=0.02, C_ma=-0.6, C_mq=-8.0, C_mde=-1.1, rho=1.225, S=16.2, c_bar=1.5
+"""
+
 import numpy as np
-from dataclasses import dataclass
-from typing import Tuple, Optional
 
 
-@dataclass
-class AircraftParameters:
-    """Physical and aerodynamic parameters for the aircraft."""
-    
-    # Mass and inertia
-    m: float = 1100.0           # Mass [kg]
-    I_y: float = 1800.0          # Pitch moment of inertia [kg·m²]
-    
-    # Geometric properties
-    S: float = 16.2              # Wing reference area [m²]
-    c_bar: float = 1.5           # Mean aerodynamic chord [m]
-    b: float = 11.0              # Wing span [m]
-    
-    # Propulsion
-    T_max: float = 2500.0        # Maximum thrust [N]
-    
-    # Aerodynamic coefficients - Lift
-    C_L_0: float = 0.28          # Zero-alpha lift coefficient
-    C_L_alpha: float = 5.0       # Lift curve slope [1/rad]
-    C_L_delta_e: float = 0.4     # Elevator lift effectiveness [1/rad]
-    
-    # Aerodynamic coefficients - Drag
-    C_D_0: float = 0.03          # Zero-lift drag coefficient
-    e: float = 0.80              # Oswald efficiency factor
-    
-    # Aerodynamic coefficients - Pitching moment
-    C_m_0: float = 0.00          # Zero pitching moment coefficient
-    C_m_alpha: float = -0.6      # Pitch stiffness (static stability) [1/rad]
-    C_m_q: float = -8.0          # Pitch damping [1/rad]
-    C_m_delta_e: float = -1.2    # Elevator moment effectiveness [1/rad]
-    
-    # Environmental
-    rho: float = 1.225           # Air density [kg/m³] (sea level)
-    g: float = 9.81              # Gravitational acceleration [m/s²]
-    
-    # Control limits
-    delta_e_max: float = np.deg2rad(25)  # Max elevator deflection [rad]
-    delta_t_min: float = 0.0             # Min throttle [-]
-    delta_t_max: float = 1.0             # Max throttle [-]
-    
-    # Stall limit (model validity)
-    alpha_stall: float = np.deg2rad(15)  # Stall angle of attack [rad]
-    
-    @property
-    def AR(self) -> float:
-        """Wing aspect ratio."""
-        return self.b**2 / self.S
-    
-    @property
-    def K(self) -> float:
-        """Induced drag factor."""
-        return 1.0 / (np.pi * self.e * self.AR)
+DEFAULT_AIRCRAFT_PARAMS = {
+    # Geometry
+    "m":       1200.0,
+    "S":       16.2,        # notebook
+    "c_bar":   1.5,         # notebook
+    "AR":      7.32,
+    "e":       0.81,
+    "I_y":     1800.0,      # notebook I_y0
+
+    # Engine
+    "T_max":   3000.0,
+
+    # Atmosphere
+    "rho":     1.225,       # notebook
+    "g":       9.81,
+
+    # Aerodynamics (clean)
+    # C_L_trim at V=60, alpha=4deg: m*g/(0.5*rho*V^2*S) = 1200*9.81/(0.5*1.225*3600*16.2) = 0.328
+    # C_L0 = 0.328 - 3.5*sin(4deg) ~ 0.084
+    "C_L0":    0.0901,  # analytically derived for exact alpha_dot=0 trim
+    "C_La":    3.50,
+    "C_Lde":   0.35,
+    "C_D0":    0.027,
+
+    # Pitching moment — exact notebook values
+    "C_m0":    0.02,
+    "C_ma":   -0.60,
+    "C_mq":   -8.00,
+    "C_mde":  -1.10,
+}
 
 
-class LongitudinalDynamics:
+class AircraftSystem:
     """
-    Nonlinear longitudinal dynamics model for a fixed-wing aircraft.
-    
-    State vector: s = [V, alpha, q, theta]
-        V     : True airspeed [m/s]
-        alpha : Angle of attack [rad]
-        q     : Pitch rate [rad/s]
-        theta : Pitch angle [rad]
-    
-    Control vector: a = [delta_e, delta_t]
-        delta_e : Elevator deflection [rad]
-        delta_t : Throttle command [-] (0 to 1)
-    
-    Dynamics: ds/dt = P(s, a) + d(t)
-    
-    Reference:
-        Stevens, B. L., Lewis, F. L., & Johnson, E. N. (2016).
-        Aircraft Control and Simulation (3rd ed.). Wiley.
-        Section 2.3, equations 2.3-24 through 2.3-27.
+    Nonlinear longitudinal aircraft dynamics with RK4 integration.
+
+    Parameters
+    ----------
+    params              : dict  — overrides to DEFAULT_AIRCRAFT_PARAMS
+    t_ice               : float | None  — icing onset time [s]
+    delta_CL_alpha_ice  : float  — ΔC_La (negative), e.g. -1.05 for 30% drop
     """
-    
-    def __init__(self, params: Optional[AircraftParameters] = None):
-        """
-        Initialize the dynamics model.
-        
-        Args:
-            params: Aircraft parameters. If None, uses Cessna 172 defaults.
-        """
-        self.params = params if params is not None else AircraftParameters()
-        
-    def compute_aerodynamic_coefficients(
-        self, 
-        V: float, 
-        alpha: float, 
-        q: float, 
-        delta_e: float
-    ) -> Tuple[float, float, float]:
-        """
-        Compute lift, drag, and pitching moment coefficients.
-        
-        Args:
-            V: Airspeed [m/s]
-            alpha: Angle of attack [rad]
-            q: Pitch rate [rad/s]
-            delta_e: Elevator deflection [rad]
-            
-        Returns:
-            (C_L, C_D, C_m): Aerodynamic coefficients
-        """
-        p = self.params
-        
-        # Lift coefficient (linear in alpha and delta_e)
-        C_L = p.C_L_0 + p.C_L_alpha * alpha + p.C_L_delta_e * delta_e
-        
-        # Drag coefficient (parasitic + induced)
-        C_D = p.C_D_0 + p.K * (C_L - p.C_L_0)**2
-        
-        # Dimensionless pitch rate
-        q_hat = (q * p.c_bar) / (2 * V) if V > 1e-3 else 0.0
-        
-        # Pitching moment coefficient
-        C_m = (p.C_m_0 + 
-               p.C_m_alpha * alpha + 
-               p.C_m_q * q_hat + 
-               p.C_m_delta_e * delta_e)
-        
+
+    def __init__(self, params=None, t_ice=None, delta_CL_alpha_ice=-1.05):
+        self.p = {**DEFAULT_AIRCRAFT_PARAMS, **(params or {})}
+        self.t_ice = t_ice
+        self.delta_CL_alpha_ice = delta_CL_alpha_ice
+        self._C_La_iced = self.p["C_La"] + delta_CL_alpha_ice
+
+    def _C_La(self, t):
+        if self.t_ice is not None and t >= self.t_ice:
+            return self._C_La_iced
+        return self.p["C_La"]
+
+    def _aero(self, alpha, q, delta_e, V, t):
+        p = self.p
+        V_s = max(V, 1.0)
+        C_La = self._C_La(t)
+
+        C_L = p["C_L0"] + C_La * alpha + p["C_Lde"] * delta_e
+        C_D = p["C_D0"] + (C_La * alpha + p["C_Lde"] * delta_e) ** 2 / (
+            np.pi * p["e"] * p["AR"])
+        C_m = (p["C_m0"]
+               + p["C_ma"] * alpha
+               + p["C_mq"] * (q * p["c_bar"]) / (2.0 * V_s)
+               + p["C_mde"] * delta_e)
         return C_L, C_D, C_m
-    
-    def compute_forces_and_moments(
-        self,
-        V: float,
-        alpha: float,
-        q: float,
-        delta_e: float,
-        delta_t: float
-    ) -> Tuple[float, float, float, float]:
-        """
-        Compute aerodynamic forces and moments.
-        
-        Args:
-            V: Airspeed [m/s]
-            alpha: Angle of attack [rad]
-            q: Pitch rate [rad/s]
-            delta_e: Elevator deflection [rad]
-            delta_t: Throttle command [-]
-            
-        Returns:
-            (L, D, M, T): Lift [N], Drag [N], Pitching moment [N·m], Thrust [N]
-        """
-        p = self.params
-        
-        # Dynamic pressure
-        q_bar = 0.5 * p.rho * V**2
-        
-        # Aerodynamic coefficients
-        C_L, C_D, C_m = self.compute_aerodynamic_coefficients(V, alpha, q, delta_e)
-        
-        # Forces
-        L = q_bar * p.S * C_L
-        D = q_bar * p.S * C_D
-        
-        # Moment
-        M = q_bar * p.S * p.c_bar * C_m
-        
-        # Thrust (linear with throttle)
-        T = p.T_max * delta_t
-        
-        return L, D, M, T
-    
-    def dynamics(
-        self, 
-        s: np.ndarray, 
-        a: np.ndarray, 
-        d: Optional[np.ndarray] = None
-    ) -> np.ndarray:
-        """
-        Compute state derivatives: ds/dt = P(s, a) + d(t)
-        
-        Args:
-            s: State vector [V, alpha, q, theta]
-            a: Control vector [delta_e, delta_t]
-            d: Disturbance vector (optional, same shape as s)
-            
-        Returns:
-            s_dot: State derivatives [dV/dt, dalpha/dt, dq/dt, dtheta/dt]
-        """
-        p = self.params
-        
-        # Unpack state
-        V, alpha, q, theta = s
-        
-        # Unpack control (with saturation)
-        delta_e = np.clip(a[0], -p.delta_e_max, p.delta_e_max)
-        delta_t = np.clip(a[1], p.delta_t_min, p.delta_t_max)
-        
-        # Compute forces and moments
-        L, D, M, T = self.compute_forces_and_moments(V, alpha, q, delta_e, delta_t)
-        
-        # Avoid division by zero
-        V_safe = max(V, 1e-3)
-        
-        # State derivatives (Stevens & Lewis, 2016, eqs. 2.3-24 to 2.3-27)
-        dV_dt = (1/p.m) * (T * np.cos(alpha) - D - p.m * p.g * np.sin(theta))
-        
-        dalpha_dt = q - (1/(p.m * V_safe)) * (
-            T * np.sin(alpha) + L - p.m * p.g * np.cos(theta)
-        )
-        
-        dq_dt = M / p.I_y
-        
-        dtheta_dt = q
-        
-        # Construct derivative vector
-        s_dot = np.array([dV_dt, dalpha_dt, dq_dt, dtheta_dt])
-        
-        # Add disturbances if provided
-        if d is not None:
-            s_dot += d
-            
-        return s_dot
-    
-    def step(
-        self, 
-        s: np.ndarray, 
-        a: np.ndarray, 
-        dt: float,
-        d: Optional[np.ndarray] = None,
-        method: str = 'rk4'
-    ) -> np.ndarray:
-        """
-        Integrate dynamics forward by one time step.
-        
-        Args:
-            s: Current state [V, alpha, q, theta]
-            a: Control input [delta_e, delta_t]
-            dt: Time step [s]
-            d: Disturbance (optional)
-            method: Integration method ('euler' or 'rk4')
-            
-        Returns:
-            s_next: State at next time step
-        """
-        if method == 'euler':
-            s_next = s + self.dynamics(s, a, d) * dt
-            
-        elif method == 'rk4':
-            # 4th-order Runge-Kutta integration
-            k1 = self.dynamics(s, a, d)
-            k2 = self.dynamics(s + 0.5*dt*k1, a, d)
-            k3 = self.dynamics(s + 0.5*dt*k2, a, d)
-            k4 = self.dynamics(s + dt*k3, a, d)
-            s_next = s + (dt/6.0) * (k1 + 2*k2 + 2*k3 + k4)
-            
-        else:
-            raise ValueError(f"Unknown integration method: {method}")
-        
-        return s_next
-    
-    def trim_state(
-        self, 
-        V_target: float, 
-        gamma: float = 0.0
-    ) -> Tuple[np.ndarray, np.ndarray]:
-        """
-        Compute trim state and control for steady flight.
-        
-        Args:
-            V_target: Desired airspeed [m/s]
-            gamma: Flight path angle [rad] (0 = level flight)
-            
-        Returns:
-            (s_trim, a_trim): Trim state and control vectors
-            
-        Note: This is a simplified trim calculation.
-        For precise trim, use numerical optimization.
-        """
-        p = self.params
-        
-        # For level flight (gamma ≈ 0), approximate trim conditions
-        # Weight = Lift, Thrust = Drag
-        
-        # Required lift coefficient
-        q_bar = 0.5 * p.rho * V_target**2
-        C_L_req = (p.m * p.g * np.cos(gamma)) / (q_bar * p.S)
-        
-        # Solve for alpha (ignoring elevator)
-        alpha_trim = (C_L_req - p.C_L_0) / p.C_L_alpha
-        
-        # Required drag
-        C_D_trim = p.C_D_0 + p.K * (C_L_req - p.C_L_0)**2
-        D_trim = q_bar * p.S * C_D_trim
-        
-        # Required thrust
-        T_req = D_trim + p.m * p.g * np.sin(gamma)
-        delta_t_trim = np.clip(T_req / p.T_max, 0.0, 1.0)
-        
-        # Elevator for trim (simplified: assume C_m ≈ 0)
-        delta_e_trim = -(p.C_m_0 + p.C_m_alpha * alpha_trim) / p.C_m_delta_e
-        delta_e_trim = np.clip(delta_e_trim, -p.delta_e_max, p.delta_e_max)
-        
-        # Pitch angle for steady flight
-        theta_trim = alpha_trim + gamma
-        
-        s_trim = np.array([V_target, alpha_trim, 0.0, theta_trim])
-        a_trim = np.array([delta_e_trim, delta_t_trim])
-        
-        return s_trim, a_trim
-    
-    def is_valid_state(self, s: np.ndarray) -> bool:
-        """
-        Check if state is within model validity bounds.
-        
-        Args:
-            s: State vector [V, alpha, q, theta]
-            
-        Returns:
-            True if state is valid, False otherwise
-        """
-        V, alpha, q, theta = s
-        
-        # Check physical bounds
-        if V < 5.0:  # Minimum realistic airspeed
-            return False
-        if abs(alpha) > self.params.alpha_stall:  # Stall regime
-            return False
-        if abs(q) > np.deg2rad(100):  # Unrealistic pitch rate
-            return False
-            
-        return True
-    
-    def get_flight_condition(self, s: np.ndarray) -> str:
-        """
-        Get human-readable flight condition string.
-        
-        Args:
-            s: State vector
-            
-        Returns:
-            Description of current flight condition
-        """
-        V, alpha, q, theta = s
-        
-        alpha_deg = np.rad2deg(alpha)
-        theta_deg = np.rad2deg(theta)
-        q_deg = np.rad2deg(q)
-        
-        conditions = []
-        
-        # Speed regime
-        if V < 15:
-            conditions.append("STALL SPEED")
-        elif V < 25:
-            conditions.append("Slow flight")
-        elif V > 50:
-            conditions.append("High speed")
-            
-        # Angle of attack
-        if abs(alpha_deg) > 12:
-            conditions.append("HIGH AoA")
-        
-        # Pitch attitude
-        if theta_deg > 20:
-            conditions.append("Climbing")
-        elif theta_deg < -20:
-            conditions.append("Diving")
-            
-        # Pitch rate
-        if abs(q_deg) > 5:
-            conditions.append("Pitching")
-            
-        return ", ".join(conditions) if conditions else "Normal flight"
 
+    def _eom(self, t, x, delta_e, delta_t):
+        p = self.p
+        V, alpha, q, theta = x
+        V = max(V, 1.0)
 
-# Example usage and testing
-if __name__ == "__main__":
-    # Create aircraft with default Cessna 172 parameters
-    aircraft = LongitudinalDynamics()
-    
-    # Initial condition: straight and level flight at 30 m/s
-    print("=" * 60)
-    print("AIRCRAFT LONGITUDINAL DYNAMICS MODEL")
-    print("=" * 60)
-    print(f"Aircraft: Cessna 172 (default parameters)")
-    print(f"Mass: {aircraft.params.m} kg")
-    print(f"Wing area: {aircraft.params.S} m²")
-    print(f"Aspect ratio: {aircraft.params.AR:.2f}")
-    print()
-    
-    # Compute trim condition
-    V_cruise = 30.0  # m/s
-    s_trim, a_trim = aircraft.trim_state(V_cruise, gamma=0.0)
-    
-    print("TRIM CONDITION (level flight at 30 m/s):")
-    print(f"  V     = {s_trim[0]:.2f} m/s")
-    print(f"  alpha = {np.rad2deg(s_trim[1]):.2f}°")
-    print(f"  q     = {np.rad2deg(s_trim[2]):.2f}°/s")
-    print(f"  theta = {np.rad2deg(s_trim[3]):.2f}°")
-    print(f"  delta_e = {np.rad2deg(a_trim[0]):.2f}°")
-    print(f"  delta_t = {a_trim[1]:.3f}")
-    print()
-    
-    # Test zero-control dynamics
-    print("SIMULATING ZERO CONTROL (power-off glide):")
-    s = np.array([30.0, np.deg2rad(5), 0.0, np.deg2rad(5)])
-    a = np.array([0.0, 0.0])  # No control
-    
-    dt = 0.01
-    t = 0.0
-    
-    print(f"{'Time':>6s} {'V':>8s} {'alpha':>8s} {'q':>8s} {'theta':>8s} {'Condition':>20s}")
-    print("-" * 70)
-    
-    for i in range(500):  # 5 seconds
-        if i % 50 == 0:  # Print every 0.5 seconds
-            condition = aircraft.get_flight_condition(s)
-            print(f"{t:6.2f} {s[0]:8.2f} {np.rad2deg(s[1]):8.2f} "
-                  f"{np.rad2deg(s[2]):8.2f} {np.rad2deg(s[3]):8.2f} {condition:>20s}")
-        
-        # Integrate dynamics
-        s = aircraft.step(s, a, dt, method='rk4')
-        t += dt
-        
-        # Check validity
-        if not aircraft.is_valid_state(s):
-            print(f"\n*** Model validity violated at t={t:.2f}s ***")
-            break
-    
-    print("\n" + "=" * 60)
+        gamma = theta - alpha
+        T     = p["T_max"] * delta_t
+        q_dyn = 0.5 * p["rho"] * V**2 * p["S"]
+
+        C_L, C_D, C_m = self._aero(alpha, q, delta_e, V, t)
+        L = q_dyn * C_L
+        D = q_dyn * C_D
+        M = q_dyn * p["c_bar"] * C_m
+
+        V_dot     = (T * np.cos(alpha) - D - p["m"] * p["g"] * np.sin(gamma)) / p["m"]
+        alpha_dot = q - (T * np.sin(alpha) + L - p["m"] * p["g"] * np.cos(gamma)) / (p["m"] * V)
+        q_dot     = M / p["I_y"]
+        theta_dot = q
+
+        return np.array([V_dot, alpha_dot, q_dot, theta_dot])
+
+    def step(self, t, x, delta_e, delta_t, dt):
+        k1 = self._eom(t,        x,             delta_e, delta_t)
+        k2 = self._eom(t+dt/2,   x+dt/2*k1,    delta_e, delta_t)
+        k3 = self._eom(t+dt/2,   x+dt/2*k2,    delta_e, delta_t)
+        k4 = self._eom(t+dt,     x+dt*k3,       delta_e, delta_t)
+        return x + (dt/6.0) * (k1 + 2*k2 + 2*k3 + k4)
+
+    def trim(self, V_trim, alpha_trim):
+        """
+        Find (delta_e_trim, delta_t_trim, theta_trim) for level flight.
+        Uses C_m=0 to get delta_e, then V_dot=0 to get thrust.
+        """
+        p = self.p
+        theta_trim = alpha_trim   # gamma=0 → theta=alpha
+
+        # C_m = 0, q=0:  C_m0 + C_ma*alpha + C_mde*de = 0
+        de = -(p["C_m0"] + p["C_ma"] * alpha_trim) / p["C_mde"]
+
+        q_dyn = 0.5 * p["rho"] * V_trim**2 * p["S"]
+        C_L = p["C_L0"] + p["C_La"] * alpha_trim + p["C_Lde"] * de
+        C_D = p["C_D0"] + (p["C_La"] * alpha_trim + p["C_Lde"] * de)**2 / (
+            np.pi * p["e"] * p["AR"])
+        D = q_dyn * C_D
+
+        T  = D / max(np.cos(alpha_trim), 0.05)
+        dt = float(np.clip(T / p["T_max"], 0.0, 1.0))
+
+        return de, dt, theta_trim
+
+    def trim_check(self, V_trim, alpha_trim, de, dt_val, theta):
+        x = np.array([V_trim, alpha_trim, 0.0, theta])
+        return self._eom(0.0, x, de, dt_val)
+
+    @property
+    def C_La_clean(self):
+        return self.p["C_La"]
+
+    @property
+    def C_La_iced(self):
+        return self._C_La_iced

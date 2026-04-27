@@ -1,689 +1,344 @@
-import pygame
+"""
+visualization.py
+----------------
+Publication-quality plots for the adaptive icing simulation.
+
+Two backends
+------------
+  plot_matplotlib(results, save_path)
+      → multi-panel figure  saved as  <save_path>.png  and  <save_path>.pdf
+
+  plot_plotly(results, save_path)
+      → interactive multi-panel figure  saved as  <save_path>.html
+
+Both functions accept the dict returned by simulation.run_simulation().
+"""
+
+from __future__ import annotations
+
+import os
 import numpy as np
-from typing import Tuple, Optional
-import sys
-
-# Import the dynamics model from previous code
-# (Assume AircraftParameters and LongitudinalDynamics are available)
-from system import AircraftParameters, LongitudinalDynamics
-from dataclasses import dataclass
 
 
-
-class AircraftVisualization:
-    """Pygame-based visualization for aircraft longitudinal dynamics."""
-    
-    # Color palette
-    SKY_BLUE = (135, 206, 235)
-    GROUND_BROWN = (139, 90, 43)
-    HORIZON_WHITE = (255, 255, 255)
-    AIRCRAFT_RED = (220, 50, 50)
-    VELOCITY_GREEN = (50, 220, 50)
-    TEXT_BLACK = (0, 0, 0)
-    TEXT_WHITE = (255, 255, 255)
-    GRID_GRAY = (200, 200, 200)
-    WARNING_YELLOW = (255, 255, 0)
-    DANGER_RED = (255, 0, 0)
-    
-    def __init__(
-        self, 
-        width: int = 1400, 
-        height: int = 800,
-        scale: float = 10.0
-    ):
-        """
-        Initialize visualization.
-        
-        Args:
-            width: Window width [pixels]
-            height: Window height [pixels]
-            scale: Pixels per meter for aircraft rendering
-        """
-        pygame.init()
-        
-        self.width = width
-        self.height = height
-        self.scale = scale
-        
-        # Create window
-        self.screen = pygame.display.set_mode((width, height))
-        pygame.display.set_caption("Aircraft Longitudinal Dynamics - Free Flight (No Control)")
-        
-        # Fonts
-        self.font_large = pygame.font.SysFont('monospace', 24, bold=True)
-        self.font_medium = pygame.font.SysFont('monospace', 18)
-        self.font_small = pygame.font.SysFont('monospace', 14)
-        
-        # Clock for framerate control
-        self.clock = pygame.time.Clock()
-        
-        # View parameters
-        self.center_x = width // 2
-        self.center_y = height // 2
-        self.altitude_offset = 0.0  # For tracking aircraft vertically
-        
-        # History for plotting
-        self.max_history = 500
-        self.time_history = []
-        self.V_history = []
-        self.alpha_history = []
-        self.theta_history = []
-        self.q_history = []
-        self.altitude_history = []
-        
-    def world_to_screen(self, x: float, y: float) -> Tuple[int, int]:
-        """
-        Convert world coordinates to screen coordinates.
-        
-        Args:
-            x: Horizontal position [m] (not used in side view)
-            y: Vertical position [m] (altitude)
-            
-        Returns:
-            (screen_x, screen_y) in pixels
-        """
-        screen_x = self.center_x
-        screen_y = int(self.center_y - (y - self.altitude_offset) * self.scale)
-        return screen_x, screen_y
-    
-    def draw_horizon(self, theta: float):
-        """
-        Draw artificial horizon (rotates with pitch angle).
-        
-        Args:
-            theta: Pitch angle [rad]
-        """
-        # Sky
-        self.screen.fill(self.SKY_BLUE)
-        
-        # Ground (lower half initially)
-        ground_rect = pygame.Rect(0, self.center_y, self.width, self.height // 2)
-        pygame.draw.rect(self.screen, self.GROUND_BROWN, ground_rect)
-        
-        # Horizon line (rotates with theta)
-        # For simplicity, we'll draw a straight line at center
-        # (In a full implementation, this would tilt)
-        horizon_y = self.center_y
-        pygame.draw.line(
-            self.screen, 
-            self.HORIZON_WHITE, 
-            (0, horizon_y), 
-            (self.width, horizon_y), 
-            3
-        )
-        
-        # Pitch ladder (angle reference marks)
-        for angle_deg in range(-30, 40, 10):
-            if angle_deg == 0:
-                continue
-            angle_rad = np.deg2rad(angle_deg)
-            y_offset = -angle_rad * self.scale * 20  # Scale factor for visibility
-            y_pos = int(horizon_y + y_offset)
-            
-            if 0 < y_pos < self.height:
-                line_length = 80 if angle_deg % 20 == 0 else 40
-                pygame.draw.line(
-                    self.screen,
-                    self.GRID_GRAY,
-                    (self.center_x - line_length, y_pos),
-                    (self.center_x + line_length, y_pos),
-                    1
-                )
-                # Label
-                label = self.font_small.render(f"{angle_deg}°", True, self.GRID_GRAY)
-                self.screen.blit(label, (self.center_x + line_length + 10, y_pos - 7))
-    
-    def draw_aircraft(self, theta: float, alpha: float):
-        """
-        Draw aircraft symbol (side view).
-        
-        Args:
-            theta: Pitch angle [rad]
-            alpha: Angle of attack [rad]
-        """
-        # Aircraft is always at screen center
-        x, y = self.center_x, self.center_y
-        
-        # Aircraft body orientation (pitch angle)
-        fuselage_length = 60
-        wing_span = 80
-        
-        # Fuselage
-        nose_x = x + fuselage_length * np.cos(theta)
-        nose_y = y - fuselage_length * np.sin(theta)
-        tail_x = x - fuselage_length * np.cos(theta)
-        tail_y = y + fuselage_length * np.sin(theta)
-        
-        pygame.draw.line(
-            self.screen,
-            self.AIRCRAFT_RED,
-            (int(tail_x), int(tail_y)),
-            (int(nose_x), int(nose_y)),
-            4
-        )
-        
-        # Wings (perpendicular to fuselage)
-        wing_angle = theta + np.pi/2
-        wing_dx = wing_span/2 * np.cos(wing_angle)
-        wing_dy = wing_span/2 * np.sin(wing_angle)
-        
-        pygame.draw.line(
-            self.screen,
-            self.AIRCRAFT_RED,
-            (int(x - wing_dx), int(y + wing_dy)),
-            (int(x + wing_dx), int(y - wing_dy)),
-            3
-        )
-        
-        # Horizontal stabilizer
-        stab_length = 30
-        stab_x = tail_x - 10 * np.cos(theta)
-        stab_y = tail_y + 10 * np.sin(theta)
-        stab_dx = stab_length/2 * np.cos(wing_angle)
-        stab_dy = stab_length/2 * np.sin(wing_angle)
-        
-        pygame.draw.line(
-            self.screen,
-            self.AIRCRAFT_RED,
-            (int(stab_x - stab_dx), int(stab_y + stab_dy)),
-            (int(stab_x + stab_dx), int(stab_y - stab_dy)),
-            2
-        )
-        
-        # Nose marker (circle)
-        pygame.draw.circle(self.screen, self.AIRCRAFT_RED, (int(nose_x), int(nose_y)), 6)
-    
-    def draw_velocity_vector(self, V: float, alpha: float, theta: float):
-        """
-        Draw velocity vector (shows flight path).
-        
-        Args:
-            V: Airspeed [m/s]
-            alpha: Angle of attack [rad]
-            theta: Pitch angle [rad]
-        """
-        # Flight path angle = theta - alpha
-        gamma = theta - alpha
-        
-        # Vector length proportional to speed
-        vector_length = V * 3  # Scale for visibility
-        
-        x, y = self.center_x, self.center_y
-        end_x = x + vector_length * np.cos(gamma)
-        end_y = y - vector_length * np.sin(gamma)
-        
-        # Draw arrow
-        pygame.draw.line(
-            self.screen,
-            self.VELOCITY_GREEN,
-            (x, y),
-            (int(end_x), int(end_y)),
-            3
-        )
-        
-        # Arrowhead
-        arrow_size = 10
-        arrow_angle = np.deg2rad(25)
-        
-        for sign in [-1, 1]:
-            arr_angle = gamma + np.pi + sign * arrow_angle
-            arr_x = end_x + arrow_size * np.cos(arr_angle)
-            arr_y = end_y - arrow_size * np.sin(arr_angle)
-            pygame.draw.line(
-                self.screen,
-                self.VELOCITY_GREEN,
-                (int(end_x), int(end_y)),
-                (int(arr_x), int(arr_y)),
-                3
-            )
-    
-    def draw_telemetry(
-        self, 
-        s: np.ndarray, 
-        a: np.ndarray, 
-        t: float,
-        forces: Tuple[float, float, float, float]
-    ):
-        """
-        Draw telemetry panel with state information.
-        
-        Args:
-            s: State vector [V, alpha, q, theta]
-            a: Control vector [delta_e, delta_t]
-            t: Simulation time [s]
-            forces: (L, D, M, T) forces and moments
-        """
-        V, alpha, q, theta = s
-        delta_e, delta_t = a
-        L, D, M, T = forces
-        
-        # Panel background
-        panel_width = 350
-        panel_height = 400
-        panel_x = self.width - panel_width - 10
-        panel_y = 10
-        
-        panel_surface = pygame.Surface((panel_width, panel_height))
-        panel_surface.set_alpha(220)
-        panel_surface.fill((40, 40, 40))
-        self.screen.blit(panel_surface, (panel_x, panel_y))
-        
-        # Title
-        y_offset = panel_y + 10
-        title = self.font_large.render("TELEMETRY", True, self.TEXT_WHITE)
-        self.screen.blit(title, (panel_x + 10, y_offset))
-        y_offset += 35
-        
-        # Draw separator
-        pygame.draw.line(
-            self.screen,
-            self.GRID_GRAY,
-            (panel_x + 10, y_offset),
-            (panel_x + panel_width - 10, y_offset),
-            1
-        )
-        y_offset += 10
-        
-        # State variables
-        data = [
-            ("Time", f"{t:.2f} s", self.TEXT_WHITE),
-            ("", "", self.TEXT_WHITE),
-            ("Airspeed (V)", f"{V:.2f} m/s ({V*3.6:.1f} km/h)", self.TEXT_WHITE),
-            ("Angle of Attack (α)", f"{np.rad2deg(alpha):.2f}°", 
-             self.WARNING_YELLOW if abs(alpha) > np.deg2rad(10) else self.TEXT_WHITE),
-            ("Pitch Rate (q)", f"{np.rad2deg(q):.2f}°/s", self.TEXT_WHITE),
-            ("Pitch Angle (θ)", f"{np.rad2deg(theta):.2f}°", self.TEXT_WHITE),
-            ("Flight Path (γ)", f"{np.rad2deg(theta - alpha):.2f}°", self.TEXT_WHITE),
-            ("", "", self.TEXT_WHITE),
-            ("Elevator (δe)", f"{np.rad2deg(delta_e):.2f}°", self.TEXT_WHITE),
-            ("Throttle (δt)", f"{delta_t:.3f} ({delta_t*100:.1f}%)", self.TEXT_WHITE),
-            ("", "", self.TEXT_WHITE),
-            ("Lift (L)", f"{L:.1f} N", self.TEXT_WHITE),
-            ("Drag (D)", f"{D:.1f} N", self.TEXT_WHITE),
-            ("Thrust (T)", f"{T:.1f} N", self.TEXT_WHITE),
-            ("Moment (M)", f"{M:.1f} N·m", self.TEXT_WHITE),
-        ]
-        
-        for label, value, color in data:
-            if label:  # Skip empty lines for value
-                text_label = self.font_small.render(label, True, self.GRID_GRAY)
-                text_value = self.font_medium.render(value, True, color)
-                self.screen.blit(text_label, (panel_x + 15, y_offset))
-                self.screen.blit(text_value, (panel_x + 15, y_offset + 16))
-                y_offset += 38
-            else:
-                y_offset += 10
-    
-    def draw_plots(self):
-        """Draw time-history plots in bottom panel."""
-        if len(self.time_history) < 2:
-            return
-        
-        plot_height = 150
-        plot_y = self.height - plot_height - 10
-        plot_width = (self.width - 40 - 350) // 2  # Split into 2 plots, account for telemetry
-        
-        # Background
-        pygame.draw.rect(
-            self.screen,
-            (30, 30, 30),
-            (10, plot_y, plot_width * 2 + 20, plot_height)
-        )
-        
-        # Plot 1: Airspeed
-        self._draw_subplot(
-            self.time_history,
-            self.V_history,
-            10,
-            plot_y,
-            plot_width,
-            plot_height,
-            "Airspeed [m/s]",
-            self.VELOCITY_GREEN
-        )
-        
-        # Plot 2: Pitch angle and AoA
-        self._draw_subplot_dual(
-            self.time_history,
-            [np.rad2deg(a) for a in self.theta_history],
-            [np.rad2deg(a) for a in self.alpha_history],
-            20 + plot_width,
-            plot_y,
-            plot_width,
-            plot_height,
-            "Angles [deg]",
-            self.AIRCRAFT_RED,
-            self.WARNING_YELLOW,
-            "θ",
-            "α"
-        )
-    
-    def _draw_subplot(
-        self,
-        x_data,
-        y_data,
-        x_pos,
-        y_pos,
-        width,
-        height,
-        title,
-        color
-    ):
-        """Helper to draw a single time-series plot."""
-        margin = 30
-        plot_x = x_pos + margin
-        plot_y = y_pos + margin
-        plot_w = width - 2 * margin
-        plot_h = height - 2 * margin
-        
-        # Title
-        title_surf = self.font_small.render(title, True, self.TEXT_WHITE)
-        self.screen.blit(title_surf, (plot_x, y_pos + 5))
-        
-        # Axes
-        pygame.draw.line(
-            self.screen,
-            self.GRID_GRAY,
-            (plot_x, plot_y + plot_h),
-            (plot_x + plot_w, plot_y + plot_h),
-            1
-        )
-        pygame.draw.line(
-            self.screen,
-            self.GRID_GRAY,
-            (plot_x, plot_y),
-            (plot_x, plot_y + plot_h),
-            1
-        )
-        
-        # Data range
-        y_min = min(y_data)
-        y_max = max(y_data)
-        y_range = y_max - y_min if y_max > y_min else 1.0
-        
-        x_min = min(x_data)
-        x_max = max(x_data)
-        x_range = x_max - x_min if x_max > x_min else 1.0
-        
-        # Plot data
-        points = []
-        for i, (t, y) in enumerate(zip(x_data, y_data)):
-            px = plot_x + int((t - x_min) / x_range * plot_w)
-            py = plot_y + plot_h - int((y - y_min) / y_range * plot_h)
-            points.append((px, py))
-        
-        if len(points) > 1:
-            pygame.draw.lines(self.screen, color, False, points, 2)
-        
-        # Labels
-        label_min = self.font_small.render(f"{y_min:.1f}", True, self.GRID_GRAY)
-        label_max = self.font_small.render(f"{y_max:.1f}", True, self.GRID_GRAY)
-        self.screen.blit(label_max, (plot_x - 25, plot_y - 5))
-        self.screen.blit(label_min, (plot_x - 25, plot_y + plot_h - 10))
-    
-    def _draw_subplot_dual(
-        self,
-        x_data,
-        y1_data,
-        y2_data,
-        x_pos,
-        y_pos,
-        width,
-        height,
-        title,
-        color1,
-        color2,
-        label1,
-        label2
-    ):
-        """Helper to draw dual time-series plot."""
-        margin = 30
-        plot_x = x_pos + margin
-        plot_y = y_pos + margin
-        plot_w = width - 2 * margin
-        plot_h = height - 2 * margin
-        
-        # Title with legend
-        title_surf = self.font_small.render(title, True, self.TEXT_WHITE)
-        self.screen.blit(title_surf, (plot_x, y_pos + 5))
-        
-        leg1 = self.font_small.render(label1, True, color1)
-        leg2 = self.font_small.render(label2, True, color2)
-        self.screen.blit(leg1, (plot_x + 120, y_pos + 5))
-        self.screen.blit(leg2, (plot_x + 150, y_pos + 5))
-        
-        # Axes
-        pygame.draw.line(
-            self.screen,
-            self.GRID_GRAY,
-            (plot_x, plot_y + plot_h),
-            (plot_x + plot_w, plot_y + plot_h),
-            1
-        )
-        pygame.draw.line(
-            self.screen,
-            self.GRID_GRAY,
-            (plot_x, plot_y),
-            (plot_x, plot_y + plot_h),
-            1
-        )
-        
-        # Combined range
-        all_y = y1_data + y2_data
-        y_min = min(all_y)
-        y_max = max(all_y)
-        y_range = y_max - y_min if y_max > y_min else 1.0
-        
-        x_min = min(x_data)
-        x_max = max(x_data)
-        x_range = x_max - x_min if x_max > x_min else 1.0
-        
-        # Plot both datasets
-        for y_data, color in [(y1_data, color1), (y2_data, color2)]:
-            points = []
-            for t, y in zip(x_data, y_data):
-                px = plot_x + int((t - x_min) / x_range * plot_w)
-                py = plot_y + plot_h - int((y - y_min) / y_range * plot_h)
-                points.append((px, py))
-            if len(points) > 1:
-                pygame.draw.lines(self.screen, color, False, points, 2)
-    
-    def update_history(self, t: float, s: np.ndarray):
-        """Update time-history buffers."""
-        self.time_history.append(t)
-        self.V_history.append(s[0])
-        self.alpha_history.append(s[1])
-        self.q_history.append(s[2])
-        self.theta_history.append(s[3])
-        
-        # Trim to max length
-        if len(self.time_history) > self.max_history:
-            self.time_history.pop(0)
-            self.V_history.pop(0)
-            self.alpha_history.pop(0)
-            self.q_history.pop(0)
-            self.theta_history.pop(0)
-    
-    def render(
-        self,
-        s: np.ndarray,
-        a: np.ndarray,
-        t: float,
-        forces: Tuple[float, float, float, float]
-    ):
-        """
-        Render complete frame.
-        
-        Args:
-            s: State vector
-            a: Control vector
-            t: Simulation time
-            forces: (L, D, M, T)
-        """
-        V, alpha, q, theta = s
-        
-        # Draw layers
-        self.draw_horizon(theta)
-        self.draw_velocity_vector(V, alpha, theta)
-        self.draw_aircraft(theta, alpha)
-        self.draw_telemetry(s, a, t, forces)
-        self.draw_plots()
-        
-        # Warning overlays
-        if abs(alpha) > np.deg2rad(12):
-            warning = self.font_large.render("⚠ HIGH ANGLE OF ATTACK", True, self.WARNING_YELLOW)
-            self.screen.blit(warning, (20, 20))
-        
-        if V < 15:
-            warning = self.font_large.render("⚠ LOW AIRSPEED", True, self.DANGER_RED)
-            self.screen.blit(warning, (20, 60))
-        
-        # Instructions
-        instructions = [
-            "ZERO CONTROL MODE (Free Flight)",
-            "Press SPACE to reset",
-            "Press ESC to quit"
-        ]
-        y_off = self.height - 100
-        for instr in instructions:
-            text = self.font_small.render(instr, True, self.TEXT_WHITE)
-            self.screen.blit(text, (20, y_off))
-            y_off += 20
-        
-        pygame.display.flip()
+# ---------------------------------------------------------------------------
+# Shared helpers
+# ---------------------------------------------------------------------------
+def _deg(rad_array):
+    """Convert radian array to degrees."""
+    return np.rad2deg(rad_array)
 
 
-def main():
-    aircraft = LongitudinalDynamics()
-    viz = AircraftVisualization(width=1400, height=800)
-    
-    # ===== INITIAL CONDITION SELECTOR =====
-    print("Select initial condition:")
-    print("1. Default (non-trim, shows dive-pullup)")
-    print("2. Trim for glide (smooth phugoid)")
-    print("3. High speed zoom climb")
-    print("4. Custom")
-    
-    choice = input("Enter choice (1-4): ").strip()
-    
-    if choice == "1":
-        s = np.array([30.0, np.deg2rad(5), 0.0, np.deg2rad(5)])
-        a = np.array([0.0, 0.0])
-        print("→ Non-equilibrium start (expect dive-pullup)")
-        
-    elif choice == "2":
-        # Compute glide trim (5° descent)
-        V_glide = 25.0
-        gamma_glide = np.deg2rad(-5)
-        
-        # Manual trim approximation for glide
-        p = aircraft.params
-        q_bar = 0.5 * p.rho * V_glide**2
-        C_L_req = (p.m * p.g * np.cos(gamma_glide)) / (q_bar * p.S)
-        alpha_trim = (C_L_req - p.C_L_0) / p.C_L_alpha
-        theta_trim = alpha_trim + gamma_glide
-        
-        s = np.array([V_glide, alpha_trim, 0.0, theta_trim])
-        a = np.array([0.0, 0.0])
-        print(f"→ Glide trim: V={V_glide} m/s, γ={np.rad2deg(gamma_glide):.1f}°")
-        
-    elif choice == "3":
-        s = np.array([50.0, np.deg2rad(2), 0.0, np.deg2rad(2)])
-        a = np.array([0.0, 0.0])
-        print("→ High speed zoom (expect climb then phugoid)")
-        
-    else:
-        # Custom input
-        V = float(input("  Airspeed V [m/s]: "))
-        alpha_deg = float(input("  Angle of attack α [deg]: "))
-        theta_deg = float(input("  Pitch angle θ [deg]: "))
-        s = np.array([V, np.deg2rad(alpha_deg), 0.0, np.deg2rad(theta_deg)])
-        a = np.array([0.0, 0.0])
-    
-    # Simulation parameters
-    dt = 0.01  # 100 Hz
-    sim_speed = 1.0  # Real-time
-    t = 0.0
-    
-    running = True
-    paused = False
-    
-    print("=" * 70)
-    print("AIRCRAFT LONGITUDINAL DYNAMICS VISUALIZATION")
-    print("=" * 70)
-    print("Initial state:")
-    print(f"  V = {s[0]:.2f} m/s")
-    print(f"  α = {np.rad2deg(s[1]):.2f}°")
-    print(f"  q = {np.rad2deg(s[2]):.2f}°/s")
-    print(f"  θ = {np.rad2deg(s[3]):.2f}°")
-    print()
-    print("Controls: ZERO (Free flight simulation)")
-    print("Press SPACE to reset, ESC to quit")
-    print("=" * 70)
-    
-    while running:
-        # Event handling
-        for event in pygame.event.get():
-            if event.type == pygame.QUIT:
-                running = False
-            elif event.type == pygame.KEYDOWN:
-                if event.key == pygame.K_ESCAPE:
-                    running = False
-                elif event.key == pygame.K_SPACE:
-                    # Reset simulation
-                    s = np.array([30.0, np.deg2rad(5), 0.0, np.deg2rad(5)])
-                    t = 0.0
-                    viz.time_history.clear()
-                    viz.V_history.clear()
-                    viz.alpha_history.clear()
-                    viz.q_history.clear()
-                    viz.theta_history.clear()
-                    print("\n[RESET] Simulation restarted")
-                elif event.key == pygame.K_p:
-                    paused = not paused
-                    print(f"\n[PAUSE] {'Paused' if paused else 'Resumed'}")
-        
-        if not paused:
-            # Integrate dynamics
-            s = aircraft.step(s, a, dt, method='rk4')
-            t += dt
-            
-            # Compute forces for display
-            V, alpha, q, theta = s
-            delta_e, delta_t = a
-            L, D, M, T = aircraft.compute_forces_and_moments(V, alpha, q, delta_e, delta_t)
-            forces = (L, D, M, T)
-            
-            # Update history
-            viz.update_history(t, s)
-            
-            # Check validity
-            if not aircraft.is_valid_state(s):
-                print(f"\n*** MODEL VALIDITY VIOLATED at t={t:.2f}s ***")
-                print(f"State: V={s[0]:.2f}, α={np.rad2deg(s[1]):.2f}°, "
-                      f"q={np.rad2deg(s[2]):.2f}°/s, θ={np.rad2deg(s[3]):.2f}°")
-                paused = True
-        else:
-            # Still compute forces for display even when paused
-            V, alpha, q, theta = s
-            delta_e, delta_t = a
-            L, D, M, T = aircraft.compute_forces_and_moments(V, alpha, q, delta_e, delta_t)
-            forces = (L, D, M, T)
-        
-        # Render
-        viz.render(s, a, t, forces)
-        
-        # Control framerate
-        viz.clock.tick(60)  # 60 FPS display
-    
-    pygame.quit()
-    print("\nSimulation ended.")
-    print(f"Final state at t={t:.2f}s:")
-    print(f"  V = {s[0]:.2f} m/s")
-    print(f"  α = {np.rad2deg(s[1]):.2f}°")
-    print(f"  q = {np.rad2deg(s[2]):.2f}°/s")
-    print(f"  θ = {np.rad2deg(s[3]):.2f}°")
+def _icing_shade_mpl(ax, t, adaptive_mode, t_ice, color="#e74c3c", alpha=0.10):
+    """Add a shaded region from t_ice to end of simulation (Matplotlib)."""
+    ax.axvspan(t_ice, t[-1], color=color, alpha=alpha, zorder=0, label="Icing active")
 
 
-if __name__ == "__main__":
-    main()
+def _mode_switch_line_mpl(ax, t, adaptive_mode, color="#e74c3c", lw=1.2):
+    """Draw a vertical dashed line when adaptive mode switches on."""
+    switch_idx = np.argmax(adaptive_mode)   # first True
+    if adaptive_mode[switch_idx]:
+        t_switch = t[switch_idx]
+        ax.axvline(t_switch, color=color, lw=lw, ls="--",
+                   label=f"Adaptive ON  t={t_switch:.2f}s")
+
+
+# ---------------------------------------------------------------------------
+# Matplotlib
+# ---------------------------------------------------------------------------
+def plot_matplotlib(results: dict, save_path: str = "results/simulation") -> None:
+    """
+    Produce a 5-row figure:
+      1. Angle of attack  (α, α_ref)
+      2. Pitch rate  q
+      3. Elevator deflection  (total, nominal, adaptive)
+      4. Adaptation estimate  ΔĈ_Lα
+      5. Airspeed  V
+
+    Saves as .png and .pdf.
+    """
+    try:
+        import matplotlib
+        matplotlib.use("Agg")
+        import matplotlib.pyplot as plt
+        import matplotlib.gridspec as gridspec
+        from matplotlib.patches import Patch
+    except ImportError as e:
+        print(f"[visualization] matplotlib not available: {e}")
+        return
+
+    os.makedirs(os.path.dirname(save_path) or ".", exist_ok=True)
+
+    t   = results["t"]
+    adp = results["adaptive_mode"]
+    t_ice = results["t_ice"]
+
+    # ---- Style --------------------------------------------------------
+    plt.rcParams.update({
+        "font.family":      "DejaVu Sans",
+        "font.size":        9.5,
+        "axes.linewidth":   0.8,
+        "axes.spines.top":  False,
+        "axes.spines.right":False,
+        "lines.linewidth":  1.6,
+        "legend.fontsize":  8,
+        "legend.framealpha":0.7,
+        "figure.dpi":       150,
+    })
+
+    fig = plt.figure(figsize=(11, 13))
+    fig.suptitle(
+        "Lyapunov Adaptive Icing Controller — Simulation Results\n"
+        f"(icing onset at t = {t_ice} s,  "
+        f"C_Lα: {results['C_La_clean']:.3f} → {results['C_La_iced']:.3f})",
+        fontsize=11, fontweight="bold", y=0.98
+    )
+
+    gs = gridspec.GridSpec(5, 1, hspace=0.55, left=0.10, right=0.96,
+                           top=0.93, bottom=0.05)
+
+    axes = [fig.add_subplot(gs[i]) for i in range(5)]
+
+    col_nom   = "#2c7bb6"
+    col_adapt = "#d7191c"
+    col_total = "#1a1a2e"
+    col_ref   = "#555555"
+    col_ice   = "#e74c3c"
+
+    # ---- 1. Angle of attack -------------------------------------------
+    ax = axes[0]
+    ax.plot(t, _deg(results["alpha_ref"]), color=col_ref, ls="--", lw=1.2,
+            label="α_ref")
+    ax.plot(t, _deg(results["alpha"]),     color=col_nom,
+            label="α (aircraft)")
+    _icing_shade_mpl(ax, t, adp, t_ice)
+    _mode_switch_line_mpl(ax, t, adp, col_ice)
+    ax.set_ylabel("α  [deg]")
+    ax.set_title("Angle of Attack", loc="left", fontsize=9)
+    ax.legend(loc="upper right", ncol=3)
+    ax.set_xlim(t[0], t[-1])
+
+    # ---- 2. Pitch rate ------------------------------------------------
+    ax = axes[1]
+    ax.plot(t, _deg(results["q"]), color=col_nom, label="q")
+    ax.axhline(0, color=col_ref, lw=0.8, ls="--")
+    _icing_shade_mpl(ax, t, adp, t_ice)
+    _mode_switch_line_mpl(ax, t, adp, col_ice)
+    ax.set_ylabel("q  [deg/s]")
+    ax.set_title("Pitch Rate", loc="left", fontsize=9)
+    ax.legend(loc="upper right", ncol=2)
+    ax.set_xlim(t[0], t[-1])
+
+    # ---- 3. Elevator deflection ---------------------------------------
+    ax = axes[2]
+    ax.plot(t, _deg(results["delta_e_nom"]),   color=col_nom,
+            ls="--", lw=1.2, label="δe nominal")
+    ax.plot(t, _deg(results["delta_e_adapt"]), color=col_adapt,
+            ls=":",  lw=1.5, label="δe adaptive")
+    ax.plot(t, _deg(results["delta_e"]),        color=col_total,
+            lw=1.8,           label="δe total")
+    _icing_shade_mpl(ax, t, adp, t_ice)
+    _mode_switch_line_mpl(ax, t, adp, col_ice)
+    delta_e_max_deg = np.rad2deg(np.max(np.abs(results["delta_e"]))) * 1.3 + 2
+    ax.set_ylim(-delta_e_max_deg, delta_e_max_deg)
+    ax.set_ylabel("δe  [deg]")
+    ax.set_title("Elevator Deflection", loc="left", fontsize=9)
+    ax.legend(loc="upper right", ncol=3)
+    ax.set_xlim(t[0], t[-1])
+
+    # ---- 4. Adaptation estimate ---------------------------------------
+    ax = axes[3]
+    ax.plot(t, results["delta_CL_alpha_hat"], color=col_adapt, label="ΔĈ_Lα")
+    ax.axhline(results["C_La_iced"] - results["C_La_clean"],
+               color="grey", lw=1.0, ls="--",
+               label=f"True ΔC_Lα = {results['C_La_iced'] - results['C_La_clean']:.3f}")
+    _icing_shade_mpl(ax, t, adp, t_ice)
+    _mode_switch_line_mpl(ax, t, adp, col_ice)
+    ax.set_ylabel("ΔĈ_Lα  [–]")
+    ax.set_title("Adaptive Estimate of Lift Degradation", loc="left", fontsize=9)
+    ax.legend(loc="lower right", ncol=2)
+    ax.set_xlim(t[0], t[-1])
+
+    # ---- 5. Airspeed --------------------------------------------------
+    ax = axes[4]
+    ax.plot(t, results["V"], color=col_nom, label="V")
+    _icing_shade_mpl(ax, t, adp, t_ice)
+    _mode_switch_line_mpl(ax, t, adp, col_ice)
+    ax.set_ylabel("V  [m/s]")
+    ax.set_xlabel("Time  [s]")
+    ax.set_title("Airspeed", loc="left", fontsize=9)
+    ax.legend(loc="upper right", ncol=2)
+    ax.set_xlim(t[0], t[-1])
+
+    # ---- Common x-tick & icing annotation ----------------------------
+    for ax in axes:
+        ax.axvline(t_ice, color=col_ice, lw=0.9, ls="-.", alpha=0.6)
+
+    # ---- Save ---------------------------------------------------------
+    for ext in ("png", "pdf"):
+        fpath = f"{save_path}.{ext}"
+        fig.savefig(fpath, bbox_inches="tight")
+        print(f"[visualization] Saved → {fpath}")
+
+    plt.close(fig)
+
+
+# ---------------------------------------------------------------------------
+# Plotly
+# ---------------------------------------------------------------------------
+def plot_plotly(results: dict, save_path: str = "results/simulation") -> None:
+    """
+    Interactive Plotly figure with the same five panels.
+    Saved as a standalone HTML file.
+    """
+    try:
+        import plotly.graph_objects as go
+        from plotly.subplots import make_subplots
+    except ImportError as e:
+        print(f"[visualization] plotly not available: {e}")
+        return
+
+    os.makedirs(os.path.dirname(save_path) or ".", exist_ok=True)
+
+    t     = results["t"]
+    adp   = results["adaptive_mode"]
+    t_ice = results["t_ice"]
+
+    # Find switch time
+    switch_idx = int(np.argmax(adp))
+    t_switch   = float(t[switch_idx]) if adp[switch_idx] else None
+
+    # ---- Figure layout -----------------------------------------------
+    fig = make_subplots(
+        rows=5, cols=1,
+        shared_xaxes=True,
+        subplot_titles=[
+            "Angle of Attack  α",
+            "Pitch Rate  q",
+            "Elevator Deflection  δe",
+            "Adaptive Estimate  ΔĈ_Lα",
+            "Airspeed  V",
+        ],
+        vertical_spacing=0.06,
+    )
+
+    col_nom   = "#2c7bb6"
+    col_adapt = "#d7191c"
+    col_total = "#1a1a2e"
+    col_ref   = "#888888"
+    col_ice   = "rgba(231,76,60,0.12)"
+
+    # ---- Icing shading (vrect) helper --------------------------------
+    def ice_shape():
+        return dict(
+            type="rect", xref="paper", yref="paper",
+            x0=t_ice / t[-1], x1=1.0, y0=0, y1=1,
+            fillcolor="rgba(231,76,60,0.07)",
+            line_width=0,
+            layer="below",
+        )
+
+    # ---- 1. Angle of attack ------------------------------------------
+    fig.add_trace(go.Scatter(
+        x=t, y=_deg(results["alpha_ref"]),
+        name="α_ref", line=dict(color=col_ref, dash="dash", width=1.5),
+        showlegend=True,
+    ), row=1, col=1)
+    fig.add_trace(go.Scatter(
+        x=t, y=_deg(results["alpha"]),
+        name="α", line=dict(color=col_nom, width=2),
+        showlegend=True,
+    ), row=1, col=1)
+
+    # ---- 2. Pitch rate -----------------------------------------------
+    fig.add_trace(go.Scatter(
+        x=t, y=_deg(results["q"]),
+        name="q", line=dict(color=col_nom, width=2),
+        showlegend=False,
+    ), row=2, col=1)
+
+    # ---- 3. Elevator deflection --------------------------------------
+    fig.add_trace(go.Scatter(
+        x=t, y=_deg(results["delta_e_nom"]),
+        name="δe nominal", line=dict(color=col_nom, dash="dash", width=1.5),
+    ), row=3, col=1)
+    fig.add_trace(go.Scatter(
+        x=t, y=_deg(results["delta_e_adapt"]),
+        name="δe adaptive", line=dict(color=col_adapt, dash="dot", width=1.8),
+    ), row=3, col=1)
+    fig.add_trace(go.Scatter(
+        x=t, y=_deg(results["delta_e"]),
+        name="δe total", line=dict(color=col_total, width=2.5),
+    ), row=3, col=1)
+
+    # ---- 4. Adaptation estimate -------------------------------------
+    true_delta = results["C_La_iced"] - results["C_La_clean"]
+    fig.add_trace(go.Scatter(
+        x=t, y=results["delta_CL_alpha_hat"],
+        name="ΔĈ_Lα", line=dict(color=col_adapt, width=2),
+    ), row=4, col=1)
+    fig.add_trace(go.Scatter(
+        x=[t[0], t[-1]], y=[true_delta, true_delta],
+        name=f"True ΔC_Lα={true_delta:.3f}",
+        line=dict(color="grey", dash="dash", width=1.4),
+    ), row=4, col=1)
+
+    # ---- 5. Airspeed -------------------------------------------------
+    fig.add_trace(go.Scatter(
+        x=t, y=results["V"],
+        name="V [m/s]", line=dict(color=col_nom, width=2),
+        showlegend=False,
+    ), row=5, col=1)
+
+    # ---- Vertical lines at t_ice and t_switch -----------------------
+    vlines = []
+    vlines.append(dict(
+        type="line", xref="x", yref="paper",
+        x0=t_ice, x1=t_ice, y0=0, y1=1,
+        line=dict(color="rgba(231,76,60,0.55)", width=1.5, dash="dashdot"),
+        label=dict(text="Icing onset", textposition="end", font=dict(size=9)),
+    ))
+    if t_switch is not None:
+        vlines.append(dict(
+            type="line", xref="x", yref="paper",
+            x0=t_switch, x1=t_switch, y0=0, y1=1,
+            line=dict(color="rgba(231,76,60,0.85)", width=1.5, dash="dash"),
+            label=dict(text=f"Adapt ON t={t_switch:.2f}s",
+                       textposition="end", font=dict(size=9)),
+        ))
+
+    # ---- Layout ---------------------------------------------------------
+    fig.update_layout(
+        title=dict(
+            text=(
+                "<b>Lyapunov Adaptive Icing Controller — Interactive Results</b><br>"
+                f"<sub>Icing onset t={t_ice}s | "
+                f"C_Lα: {results['C_La_clean']:.3f} → {results['C_La_iced']:.3f}</sub>"
+            ),
+            x=0.5, xanchor="center",
+        ),
+        height=1050,
+        template="plotly_white",
+        hovermode="x unified",
+        legend=dict(orientation="h", yanchor="bottom", y=1.01, x=0),
+        shapes=vlines,
+        font=dict(family="Arial, sans-serif", size=11),
+        margin=dict(l=70, r=30, t=110, b=50),
+    )
+
+    # Y-axis labels
+    ylabels = {
+        "yaxis":  "α  [deg]",
+        "yaxis2": "q  [deg/s]",
+        "yaxis3": "δe  [deg]",
+        "yaxis4": "ΔĈ_Lα  [–]",
+        "yaxis5": "V  [m/s]",
+    }
+    for key, label in ylabels.items():
+        fig.update_layout(**{key: dict(title=label)})
+
+    fig.update_xaxes(title_text="Time  [s]", row=5, col=1)
+
+    # ---- Save HTML --------------------------------------------------
+    fpath = f"{save_path}.html"
+    fig.write_html(fpath, include_plotlyjs="cdn")
+    print(f"[visualization] Saved → {fpath}")
