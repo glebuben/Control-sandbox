@@ -45,6 +45,9 @@ Project_2_Adaptive_control_Pitch_plane/
 
 *Full mathematical derivation: `model_draft.md` §1-2, `lyapunov_icing_controller_final_description.md` §1*
 
+![alt text](figures/plane.jpg)
+*Scheme only for main idea reference. Description of symbols below.
+
 ### State & Control Vectors
 
 $$s = \begin{bmatrix} V \\ \alpha \\ q \\ \theta \end{bmatrix} \in \mathbb{R}^4, \qquad
