@@ -310,11 +310,7 @@ The phase portraits support this result. In the Lyapunov error space, the baseli
 
 ![alt text](figures/phase_portraits/phase_error_r_adaptive.png)
 
-The \(\alpha\)-\(\theta\) portraits show that the baseline system shifts to a new post-icing operating point with higher angle of attack and pitch angle. The adaptive controller produces a larger transient because it actively changes the elevator command, but then restores the controlled inner-loop behavior.
 
-![alt text](figures/phase_portraits/phase_alpha_theta_baseline.png)
-
-![alt text](figures/phase_portraits/phase_alpha_theta_adaptive.png)
 
 The \(\alpha\)-\(q\) portraits confirm the same conclusion: the baseline controller keeps the system bounded but away from the original reference, whereas the adaptive controller returns the motion toward \(\alpha \approx 4^\circ\) and \(q \approx 0\).
 
