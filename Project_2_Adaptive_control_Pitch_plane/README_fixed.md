@@ -50,8 +50,21 @@ Project_2_Adaptive_control_Pitch_plane/
 
 ### State & Control Vectors
 
-$$s = \begin{bmatrix} V \\ \alpha \\ q \\ \theta \end{bmatrix} \in \mathbb{R}^4, \qquad
-a = \begin{bmatrix} \delta_e \\ \delta_t \end{bmatrix} \in \mathbb{R}^2$$
+$$
+s = \begin{bmatrix}
+V \\
+\alpha \\
+q \\
+\theta
+\end{bmatrix} \in \mathbb{R}^4
+$$
+
+$$
+a = \begin{bmatrix}
+\delta_e \\
+\delta_t
+\end{bmatrix} \in \mathbb{R}^2
+$$
 
 | Symbol | Meaning | Units |
 |--------|---------|-------|
