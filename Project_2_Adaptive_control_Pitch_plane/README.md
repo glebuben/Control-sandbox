@@ -79,7 +79,7 @@ $$
 
 ### Nonlinear Dynamics
 
-$$\boxed{\dot{s} = P(s, a) + d(t)}$$
+$$\boxed{\dot{s} = P(s, a) }$$
 
 **Explicit form of $P(s,a)$**:
 
@@ -96,7 +96,6 @@ $$
 |--------|---------|-------|
 | $\dot{s}$ | State derivative | varies |
 | $P(s,a)$ | Nominal dynamics vector field | varies |
-| $d(t) \in \mathbb{R}^4$ | Additive disturbance (gusts, noise) | varies |
 | $m$ | Aircraft mass | kg |
 | $g$ | Gravitational acceleration | m/s² |
 | $\gamma$ | Flight-path angle | rad |
