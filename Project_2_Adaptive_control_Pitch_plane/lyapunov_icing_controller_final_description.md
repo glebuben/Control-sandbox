@@ -663,7 +663,8 @@ $$
 The switching controller is
 
 $$
-\boxed{a=g(s_a)=\begin{cases}g_{clean}(s), & adaptive\_mode=False,\\g_{ice}(s_a), & adaptive\_mode=True.\end{cases}}
+\boxed{a=g(s_a)=\begin{cases}g_{clean}(s), & adaptive\_mode=False,\\\\
+g_{ice}(s_a), & adaptive\_mode=True.\end{cases}}
 $$
 
 where
