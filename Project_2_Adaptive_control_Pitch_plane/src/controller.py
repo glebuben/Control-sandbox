@@ -155,18 +155,13 @@ class LyapunovIcingAdaptiveController:
         delta_e [rad]
     """
 
-    def __init__(self, params=None):
+    def __init__(self, params=None, use_adaptation=True):
         self.params = {**DEFAULT_CONTROLLER_PARAMS, **(params or {})}
-
-        # Estimate of aerodynamic degradation:
-        # Delta C_La = C_La_ice - C_La_clean <= 0
+        self.use_adaptation = use_adaptation # NEW FLAG
         self.delta_CL_alpha_hat = 0.0
-
-        # Switching flag
         self.adaptive_mode = False
-
-        # Detection counter
         self.detect_counter = 0
+
 
     # ------------------------------------------------------------------
     # Basic error definitions
@@ -508,17 +503,17 @@ class LyapunovIcingAdaptiveController:
         """
 
         p = self.params
-
         e_alpha, e_q = self.compute_errors(state, reference)
         r = self.compute_r(e_alpha, e_q)
-
         F, B, Y, parts = self.compute_F_B_Y(state, reference)
 
-        # Avoid division by near-zero B.
         if abs(B) < p["B_min"]:
             B_safe = np.sign(B) * p["B_min"] if B != 0.0 else p["B_min"]
         else:
             B_safe = B
+
+        delta_e_nom = (-F - p["k_r"] * r) / B_safe
+
 
         # ------------------------------------------------------------------
         # Nominal Lyapunov control:
@@ -531,17 +526,20 @@ class LyapunovIcingAdaptiveController:
         #
         # in the clean-wing case.
         # ------------------------------------------------------------------
-        delta_e_nom = (-F - p["k_r"] * r) / B_safe
-
-        # Detection before switching.
-        if not self.adaptive_mode:
-            self.detect_degradation(e_alpha, r, delta_e_nom)
-
-        # Update adaptation if adaptive mode is enabled.
+        # ONLY run detection and adaptation if enabled
         delta_C_hat_dot = 0.0
-        if self.adaptive_mode:
-            delta_C_hat_dot = self.update_adaptation(Y, r, dt)
-            # print(delta_C_hat_dot)
+        delta_e_adapt = 0.0
+        
+        if self.use_adaptation:
+            if not self.adaptive_mode:
+                self.detect_degradation(e_alpha, r, delta_e_nom)
+
+            if self.adaptive_mode:
+                delta_C_hat_dot = self.update_adaptation(Y, r, dt)
+                delta_e_adapt = -Y * self.delta_CL_alpha_hat / B_safe
+
+        delta_e_raw = delta_e_nom + delta_e_adapt
+        delta_e = float(np.clip(delta_e_raw, -p["delta_e_max"], p["delta_e_max"]))
 
         # ------------------------------------------------------------------
         # Adaptive compensation:
@@ -552,9 +550,9 @@ class LyapunovIcingAdaptiveController:
         #
         #   delta_e = (-F - k_r*r - Y*Delta_C_hat) / B
         # ------------------------------------------------------------------
-        delta_e_adapt = 0.0
-        if self.adaptive_mode:
-            delta_e_adapt = -Y * self.delta_CL_alpha_hat / B_safe
+        # delta_e_adapt = 0.0
+        # if self.adaptive_mode:
+        #     delta_e_adapt = -Y * self.delta_CL_alpha_hat / B_safe
             # print("\n\n\n\n\n")
             # print(delta_e_adapt)
 

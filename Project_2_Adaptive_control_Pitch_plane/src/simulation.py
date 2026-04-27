@@ -41,12 +41,8 @@ def run_simulation(
     config:            SimConfig | None = None,
     aircraft_params:   dict | None = None,
     controller_params: dict | None = None,
-) -> dict:
-    """
-    Run the full closed-loop simulation.
-
-    Returns a flat dict of time-series arrays.
-    """
+    use_adaptation:    bool = True, # ADDED PARAMETER
+    ) -> dict:
     cfg = config or SimConfig()
 
     aircraft   = AircraftSystem(
@@ -54,7 +50,11 @@ def run_simulation(
         t_ice              = cfg.t_ice,
         delta_CL_alpha_ice = cfg.delta_CL_alpha_ice,
     )
-    controller = LyapunovIcingAdaptiveController(params=controller_params)
+    # Pass the flag to the controller
+    controller = LyapunovIcingAdaptiveController(
+        params=controller_params, 
+        use_adaptation=use_adaptation
+    )
 
     # ---- Trim ----------------------------------------------------------
     de_trim, dt_trim, theta_trim = aircraft.trim(cfg.V_trim, cfg.alpha_trim)

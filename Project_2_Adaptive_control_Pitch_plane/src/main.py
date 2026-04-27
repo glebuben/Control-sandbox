@@ -29,6 +29,10 @@ def _parse():
     p.add_argument("--no-matplotlib", action="store_true")
     p.add_argument("--no-pygame",     action="store_true")
     p.add_argument("--out-dir",   type=str,   default="results")
+    # NEW MODES
+    p.add_argument("--adaptation", action="store_true", help="Run adaptive controller only")
+    p.add_argument("--compare",    action="store_true", help="Run both and compare")
+    
     return p.parse_args()
 
 
@@ -66,7 +70,7 @@ def _summary(results):
 def main():
     args = _parse()
 
-    C_La_nominal       = 3.50          # must match system.py
+    C_La_nominal       = 3.50
     delta_CL_alpha_ice = -args.severity * C_La_nominal
     alpha_ref_rad      = np.deg2rad(args.alpha_ref) if args.alpha_ref else None
 
@@ -80,25 +84,52 @@ def main():
         alpha_ref          = alpha_ref_rad,
     )
 
-    print("\n" + "="*58)
-    print("  Lyapunov Adaptive Icing Controller")
-    print("="*58)
-    results = run_simulation(config=cfg)
-    _summary(results)
+    # 1. Run Baseline
+    print("\nRunning Baseline Controller (Adaptation OFF)...")
+    res_base = run_simulation(config=cfg, use_adaptation=False)
 
-    if not args.no_matplotlib:
-        os.makedirs(args.out_dir, exist_ok=True)
-        print()
-        plot_matplotlib(results, save_path=os.path.join(args.out_dir, "simulation"))
+    # 2. Run Adaptive
+    print("\nRunning Adaptive Controller (Adaptation ON)...")
+    res_adp = run_simulation(config=cfg, use_adaptation=True)
+
+    # 3. Summaries
+    print("\n--- BASELINE SUMMARY ---")
+    _summary(res_base)
+    print("\n--- ADAPTIVE SUMMARY ---")
+    _summary(res_adp)
+
+    if args.compare:
+        print("\n[Mode: COMPARE] Running Baseline and Adaptive...")
+        res_base = run_simulation(config=cfg, use_adaptation=False)
+        res_adp  = run_simulation(config=cfg, use_adaptation=True)
+        
+        _summary(res_base)
+        _summary(res_adp)
+        
+        if not args.no_matplotlib:
+            plot_matplotlib(res_adp, res_base=res_base, save_path=os.path.join(args.out_dir, "comparison"))
+        results_to_viz = res_adp # For PyGame
+
+    elif args.adaptation:
+        print("\n[Mode: ADAPTIVE] Running Adaptive only...")
+        res_adp = run_simulation(config=cfg, use_adaptation=True)
+        _summary(res_adp)
+        
+        if not args.no_matplotlib:
+            plot_matplotlib(res_adp, save_path=os.path.join(args.out_dir, "adaptive"))
+        results_to_viz = res_adp
+
+    else:
+        print("\n[Mode: BASELINE] Running Baseline only...")
+        res_base = run_simulation(config=cfg, use_adaptation=False)
+        _summary(res_base)
+        
+        if not args.no_matplotlib:
+            plot_matplotlib(res_base, save_path=os.path.join(args.out_dir, "baseline"))
+        results_to_viz = res_base
 
     if not args.no_pygame:
-        print("\nLaunching pygame dashboard …")
-        print("  [A] auto-play  [SPACE/→/←] step  [+/-] speed  [R] restart  [Q] quit")
-        run_pygame_dashboard(results)
-
-    if not args.no_matplotlib:
-        print(f"\nStatic plots saved in '{args.out_dir}/'")
-
+        run_pygame_dashboard(results_to_viz)
 
 if __name__ == "__main__":
     main()
