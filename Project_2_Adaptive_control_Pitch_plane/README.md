@@ -28,7 +28,7 @@ cd Project_2_Adaptive_control_Pitch_plane/src
 python main.py         
 ```
 
-> See [`code_description.md`](code_description.md) for the full list of command-line arguments and output options.
+>See [`code_description.md`](code_description.md) for the full list of command-line arguments and output options.
 
 ---
 ## 🔧 Architecture of Project
@@ -42,10 +42,11 @@ Project_2_Adaptive_control_Pitch_plane/
 ├── configs/ # config files     
 ├── figures/ # graphics     
 ├── animations/ # GIF animation    
-├── code_description.md # repository guide & CLI reference 
-├── model_draft.md # more detailed model description 
+├── code_description.md # repository guide & CLI reference     
+├── model_draft.md # more detailed model description  
 ├── lyapunov_icing_controller.md # more detailed controller definition with stabilization proofs
-└── README.md   
+└── README.md      
+
 
 > 📖 See [`code_description.md`](code_description.md) for a detailed breakdown of each module, its public API, and step-by-step usage tutorials.
 
