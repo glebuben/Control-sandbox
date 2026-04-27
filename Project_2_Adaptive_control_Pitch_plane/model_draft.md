@@ -28,6 +28,7 @@ $$
 | $\delta_t$ | Throttle command | – | $[0,\, 1]$ |
 
 **Nonlinear Dynamics:**  
+
 $$\dot{s} = P(s, a) + d(t)$$
 
 **Explicit form of $P(s,a)$:**
@@ -65,6 +66,7 @@ Non-dimensionalizing yields:
 $$
 \frac{F}{\bar{q} S} = f(\text{Re}, \text{Ma}, \text{shape}, \alpha, \dots) \triangleq C_F
 $$
+
 Thus, the universal scaling law for aerodynamic forces is:
 
 $$F = \bar{q} S C_F = \frac{1}{2}\rho V^2 S C_F$$
@@ -96,6 +98,7 @@ $$C_D(\alpha, \delta_e) = C_{D_0} + K(C_L - C_{L_0})^2, \quad K = \frac{1}{\pi e
 
 #### **2.3 Pitching Moment**
 Moments require a reference length to convert force $\times$ distance into torque. In longitudinal dynamics, the **mean aerodynamic chord** $\bar{c}$ is used:
+
 $$M = \bar{q} S \bar{c} \, C_m(\alpha, q, \delta_e)$$
 
 The pitching moment coefficient is expanded as:
@@ -129,6 +132,7 @@ Thus:
 $$
 T(\delta\_t) = T\_{\text{max}}(\rho, \text{Ma}) \cdot \delta\_t \approx T\_{\text{max}} \cdot \delta\_t
 $$
+
 *(Altitude/Mach dependencies are lumped into $T_{\text{max}}$ or treated as slow-varying parameters in $d(t)$)*
 
 If actuator lag must be modeled:
