@@ -43,7 +43,7 @@ Project_2_Adaptive_control_Pitch_plane/
 ├── figures/ # graphics     
 ├── animations/ # GIF animation    
 ├── code_description.md # repository guide & CLI reference 
-├── model_draft.md # more detailed model description     
+├── model_draft.md # more detailed model description 
 ├── lyapunov_icing_controller.md # more detailed controller definition with stabilization proofs
 └── README.md   
 
