@@ -35,40 +35,21 @@ $$
 The equations of motion are
 
 $$
-\dot{V}
-=
+\dot{V} =
 \frac{1}{m}
-\left[
-T\cos\alpha
--
-D
--
-mg\sin\gamma
-\right],
+\left[T\cos\alpha-D-
+mg\sin\gamma\right],
 $$
 
 $$
-\dot{\alpha}
-=
-q
--
-\frac{1}{mV}
-\left[
-T\sin\alpha
-+
-L
--
-mg\cos\gamma
-\right],
+\dot{\alpha} =
+q-\frac{1}{mV}
+\left[T\sin\alpha+L-mg\cos\gamma\right],
 $$
 
 $$
-\dot{q}
-=
-\frac{1}{I_y}
-\left[
-\frac{1}{2}\rho V^2S\bar{c}C_m
-\right],
+\dot{q}=
+\frac{1}{I_y}\left[\frac{1}{2}\rho V^2S\bar{c}C_m\right],
 $$
 
 $$
@@ -88,41 +69,15 @@ $$
 The aerodynamic coefficients are
 
 $$
-C_L
-=
-C_{L0}
-+
-C_{L_\alpha}\alpha
-+
-C_{L_{\delta_e}}\delta_e,
+C_L=C_{L0}+C_{L_\alpha}\alpha+C_{L_{\delta_e}}\delta_e,
 $$
 
 $$
-C_D
-=
-C_{D0}
-+
-\frac{
-\left(
-C_{L_\alpha}\alpha
-+
-C_{L_{\delta_e}}\delta_e
-\right)^2
-}{
-\pi e AR
-},
+C_D=C_{D0}+\frac{\left(C_{L_\alpha}\alpha+C_{L_{\delta_e}}\delta_e\right)^2}{\pi e AR},
 $$
 
 $$
-C_m
-=
-C_{m0}
-+
-C_{m\alpha}\alpha
-+
-C_{mq}\frac{q\bar{c}}{2V}
-+
-C_{m\delta_e}\delta_e .
+C_m=C_{m0}+C_{m\alpha}\alpha+C_{mq}\frac{q\bar{c}}{2V}+C_{m\delta_e}\delta_e .
 $$
 
 The coefficients have the following meaning.
@@ -163,72 +118,44 @@ $$
 Define
 
 $$
-\Delta C_{L_\alpha}
-=
-C_{L_\alpha}^{ice}
--
-C_{L_\alpha}^{clean}.
+\Delta C_{L_\alpha}=C_{L_\alpha}^{ice}-C_{L_\alpha}^{clean}.
 $$
 
 Since icing reduces lift effectiveness,
 
 $$
-\Delta C_{L_\alpha}<0.
+\Delta C_{L\_\alpha}<0.
 $$
 
 The piecewise icing model is
 
 $$
 \Delta C_{L_\alpha}(t)
-=
-\begin{cases}
-0, & t<t_{ice},\\
-\Delta C_{L_\alpha}^{ice}, & t\geq t_{ice}.
-\end{cases}
+=\begin{cases}0, & t<t_{ice},\\\Delta C_{L_\alpha}^{ice}, & t\geq t_{ice}.\end{cases}
 $$
 
 Thus,
 
 $$
-C_{L_\alpha}(t)
-=
-C_{L_\alpha}^{clean}
-+
-\Delta C_{L_\alpha}(t).
+C_{L_\alpha}(t)=C_{L_\alpha}^{clean}+\Delta C_{L_\alpha}(t).
 $$
 
 The lift variation caused by icing is
 
 $$
-\Delta C_L
-=
-\alpha\Delta C_{L_\alpha},
+\Delta C_L=\alpha\Delta C_{L_\alpha},
 $$
 
 and therefore
 
 $$
-\Delta L
-=
-\frac{1}{2}\rho V^2S\alpha\Delta C_{L_\alpha}.
+\Delta L=\frac{1}{2}\rho V^2S\alpha\Delta C_{L_\alpha}.
 $$
 
 Because lift enters the angle-of-attack equation as
 
 $$
-\dot{\alpha}
-=
-q
--
-\frac{
-T\sin\alpha
-+
-L
--
-mg\cos\gamma
-}{
-mV
-},
+\dot{\alpha}=q-\frac{T\sin\alpha+L-mg\cos\gamma}{mV},
 $$
 
 the icing-induced contribution to the angle-of-attack dynamics is
