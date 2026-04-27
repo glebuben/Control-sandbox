@@ -50,8 +50,8 @@ Project_2_Adaptive_control_Pitch_plane/
 
 ### State & Control Vectors
 
-$$s = \left[\begin{smallmatrix} V \\ \alpha \\ q \\ \theta \end{smallmatrix}\right] \in \mathbb{R}^4, \qquad
-a = \left[\begin{smallmatrix} \delta_e \\ \delta_t \end{smallmatrix}\right] \in \mathbb{R}^2$$
+$$s = \begin{bmatrix} V \\ \alpha \\ q \\ \theta \end{bmatrix} \in \mathbb{R}^4, \qquad
+a = \begin{bmatrix} \delta_e \\ \delta_t \end{bmatrix} \in \mathbb{R}^2$$
 
 | Symbol | Meaning | Units |
 |--------|---------|-------|
@@ -59,7 +59,7 @@ a = \left[\begin{smallmatrix} \delta_e \\ \delta_t \end{smallmatrix}\right] \in 
 | $V$ | True airspeed | m/s |
 | $\alpha$ | Angle of attack (wind-axis) | rad |
 | $q$ | Pitch rate about lateral axis | rad/s |
-| $\theta$ | Pit11ch angle relative to horizon | rad |
+| $\theta$ | Pitch angle relative to horizon | rad |
 | $a$ | Control (action) vector | – |
 | $\delta_e$ | Elevator deflection | rad |
 | $\delta_t$ | Throttle command (normalized) | – |
