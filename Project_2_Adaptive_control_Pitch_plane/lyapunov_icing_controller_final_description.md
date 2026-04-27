@@ -541,14 +541,7 @@ $$
 Choose
 
 $$
-\boxed{
-\mathcal{V}
-=
-\frac{1}{2}r^2
-+
-\frac{1}{2\gamma_C}
-\widetilde{\Delta C}_{L_\alpha}^2
-}
+\boxed{\mathcal{V}=\frac{1}{2}r^2+\frac{1}{2\gamma_C}\widetilde{\Delta C}_{L_\alpha}^2}
 $$
 
 with
@@ -560,13 +553,7 @@ $$
 The derivative is
 
 $$
-\dot{\mathcal{V}}
-=
-r\dot{r}
-+
-\frac{1}{\gamma_C}
-\widetilde{\Delta C}_{L_\alpha}
-\dot{\widetilde{\Delta C}}_{L_\alpha}.
+\dot{\mathcal{V}}=r\dot{r}+\frac{1}{\gamma_C}\widetilde{\Delta C}_{L_\alpha}\dot{\widetilde{\Delta C}}_{L_\alpha}.
 $$
 
 After icing is established, assume the degradation is piecewise constant:
@@ -578,81 +565,43 @@ $$
 Therefore,
 
 $$
-\dot{\widetilde{\Delta C}}_{L_\alpha}
-=
-\dot{\widehat{\Delta C}}_{L_\alpha}.
+\dot{\widetilde{\Delta C}}_{L_\alpha}=\dot{\widehat{\Delta C}}_{L_\alpha}.
 $$
 
 Using
 
 $$
-\dot{r}
-=
--k_r r
--
-Y(s)\widetilde{\Delta C}_{L_\alpha},
+\dot{r}=-k_r r-Y(s)\widetilde{\Delta C}_{L_\alpha},
 $$
 
 we obtain
 
 $$
-\dot{\mathcal{V}}
-=
--k_r r^2
--
-rY(s)\widetilde{\Delta C}_{L_\alpha}
-+
-\frac{1}{\gamma_C}
-\widetilde{\Delta C}_{L_\alpha}
-\dot{\widehat{\Delta C}}_{L_\alpha}.
+\dot{\mathcal{V}}=-k_r r^2-rY(s)\widetilde{\Delta C}_{L_\alpha}+\frac{1}{\gamma_C}\widetilde{\Delta C}_{L_\alpha}\dot{\widehat{\Delta C}}_{L_\alpha}.
 $$
 
 Group the mixed term:
 
 $$
-\dot{\mathcal{V}}
-=
--k_r r^2
-+
-\widetilde{\Delta C}_{L_\alpha}
-\left[
--rY(s)
-+
-\frac{1}{\gamma_C}
-\dot{\widehat{\Delta C}}_{L_\alpha}
-\right].
+\dot{\mathcal{V}}=-k_r r^2+\widetilde{\Delta C}_{L_\alpha}\left[-rY(s)+\frac{1}{\gamma_C}\dot{\widehat{\Delta C}}_{L_\alpha}\right].
 $$
 
 Choose the adaptive law
 
 $$
-\boxed{
-\dot{\widehat{\Delta C}}_{L_\alpha}
-=
-\gamma_CY(s)r
-}.
+\boxed{\dot{\widehat{\Delta C}}_{L_\alpha}=\gamma_CY(s)r}.
 $$
 
 Then
 
 $$
--rY(s)
-+
-\frac{1}{\gamma_C}
-\gamma_CY(s)r
-=
-0.
+-rY(s)+\frac{1}{\gamma_C}\gamma_CY(s)r=0.
 $$
 
 Thus,
 
 $$
-\boxed{
-\dot{\mathcal{V}}
-=
--k_r r^2
-\leq0
-}.
+\boxed{\dot{\mathcal{V}}=-k_r r^2\leq0}.
 $$
 
 This proves Lyapunov stability of the adaptive closed-loop system.
@@ -678,9 +627,7 @@ $$
 If $Y(s)$ is bounded, then $\dot r$ is bounded. By Barbalat's lemma,
 
 $$
-\boxed{
-r(t)\rightarrow0
-}.
+\boxed{r(t)\rightarrow0}.
 $$
 
 Using
@@ -692,17 +639,13 @@ $$
 with $\lambda_\alpha>0$, we obtain
 
 $$
-\boxed{
-e_\alpha(t)\rightarrow0
-}
+\boxed{e_\alpha(t)\rightarrow0}
 $$
 
 and
 
 $$
-\boxed{
-e_q(t)\rightarrow0
-}.
+\boxed{e_q(t)\rightarrow0}.
 $$
 
 Thus, the adaptive controller stabilizes the longitudinal inner-loop dynamics despite the unknown icing-induced reduction of $C_{L_\alpha}$.
@@ -720,64 +663,31 @@ $$
 The switching controller is
 
 $$
-\boxed{
-a=g(s_a)
-=
-\begin{cases}
-g_{clean}(s), & adaptive\_mode=False,\\
-g_{ice}(s_a), & adaptive\_mode=True.
-\end{cases}
-}
+\boxed{a=g(s_a)=\begin{cases}g_{clean}(s), & adaptive\_mode=False,\\g_{ice}(s_a), & adaptive\_mode=True.\end{cases}}
 $$
 
 where
 
 $$
-\boxed{
-g_{clean}(s)
-=
-\frac{-F(s)-k_r r}{B(s)}
-}
+\boxed{g_{clean}(s)=\frac{-F(s)-k_r r}{B(s)}}
 $$
 
 and
 
 $$
-\boxed{
-g_{ice}(s_a)
-=
-\frac{
--F(s)
--k_r r
--Y(s)\widehat{\Delta C}_{L_\alpha}
-}{
-B(s)
-}
-}.
+\boxed{g_{ice}(s_a)=\frac{-F(s)-k_r r-Y(s)\widehat{\Delta C}_{L_\alpha}}{B(s)}}.
 $$
 
 The adaptive estimate evolves according to
 
 $$
-\boxed{
-\dot{\widehat{\Delta C}}_{L_\alpha}
-=
-\gamma_CY(s)r
-}.
+\boxed{\dot{\widehat{\Delta C}}_{L_\alpha}=\gamma_CY(s)r}.
 $$
 
 The implementation uses projection:
 
 $$
-\boxed{
-\widehat{\Delta C}_{L_\alpha}
-=
-clip
-\left(
-\widehat{\Delta C}_{L_\alpha},
-\Delta C_{min},
-0
-\right)
+\boxed{\widehat{\Delta C}_{L_\alpha}=clip\left(\widehat{\Delta C}_{L_\alpha},\Delta C_{min},0\right)
 }
 $$
 
@@ -786,16 +696,7 @@ because icing can only reduce $C_{L_\alpha}$.
 The elevator command is saturated:
 
 $$
-\boxed{
-\delta_e
-=
-clip
-\left(
-\delta_e,
--\delta_{e,max},
-\delta_{e,max}
-\right)
-}.
+\boxed{\delta_e=clip\left(\delta_e,-\delta_{e,max},\delta_{e,max}\right)}.
 $$
 
 ---
@@ -880,55 +781,31 @@ $$
 The reduced dynamics is
 
 $$
-\dot{r}
-=
-F(s)
-+
-B(s)\delta_e
-+
-Y(s)\Delta C_{L_\alpha}.
+\dot{r}=F(s)+B(s)\delta_e+Y(s)\Delta C_{L_\alpha}.
 $$
 
 The adaptive controller is
 
 $$
-\delta_e
-=
-\frac{
--F(s)
--k_r r
--Y(s)\widehat{\Delta C}_{L_\alpha}
-}{
-B(s)
-}.
+\delta_e=\frac{-F(s)-k_r r-Y(s)\widehat{\Delta C}_{L_\alpha}}{B(s)}.
 $$
 
 The adaptation law is
 
 $$
-\dot{\widehat{\Delta C}}_{L_\alpha}
-=
-\gamma_CY(s)r.
+\dot{\widehat{\Delta C}}_{L_\alpha}=\gamma_CY(s)r.
 $$
 
 The Lyapunov function is
 
 $$
-\mathcal{V}
-=
-\frac{1}{2}r^2
-+
-\frac{1}{2\gamma_C}
-\widetilde{\Delta C}_{L_\alpha}^2.
+\mathcal{V}=\frac{1}{2}r^2+\frac{1}{2\gamma_C}\widetilde{\Delta C}_{L_\alpha}^2.
 $$
 
 Its derivative is
 
 $$
-\dot{\mathcal{V}}
-=
--k_r r^2
-\leq0.
+\dot{\mathcal{V}}=-k_r r^2\leq0.
 $$
 
 Therefore, under the stated assumptions,
