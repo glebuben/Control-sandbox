@@ -4,7 +4,10 @@ Here is a complete, self-contained mathematical model of an aircraft's longitudi
 ##  1. State-Space Model (Briefly)
 
 **State vector:**  
-$$s = \begin{bmatrix} V \\ \alpha \\ q \\ \theta \end{bmatrix} \in \mathbb{R}^4$$
+
+$$
+s = \begin{bmatrix} V \\ \alpha \\ q \\ \theta \end{bmatrix} \in \mathbb{R}^4
+$$
 
 | Component | Physical Meaning | Units |
 |-----------|------------------|-------|
@@ -14,7 +17,10 @@ $$s = \begin{bmatrix} V \\ \alpha \\ q \\ \theta \end{bmatrix} \in \mathbb{R}^4$
 | $\theta$ | Pitch angle relative to horizon | rad |
 
 **Control (action) vector:**  
-$$a = \begin{bmatrix} \delta_e \\ \delta_t \end{bmatrix} \in \mathbb{R}^2$$
+
+$$
+a = \begin{bmatrix} \delta_e \\ \delta_t \end{bmatrix} \in \mathbb{R}^2
+$$
 
 | Component | Physical Meaning | Units | Feasible Range |
 |-----------|------------------|-------|----------------|
@@ -25,6 +31,7 @@ $$a = \begin{bmatrix} \delta_e \\ \delta_t \end{bmatrix} \in \mathbb{R}^2$$
 $$\dot{s} = P(s, a) + d(t)$$
 
 **Explicit form of $P(s,a)$:**
+
 $$
 P(s,a) = \begin{bmatrix}
 \frac{1}{m}\left[ T(\delta_t)\cos\alpha - D(V,\alpha,\delta_e) - mg\sin\theta \right] \\[6pt]
