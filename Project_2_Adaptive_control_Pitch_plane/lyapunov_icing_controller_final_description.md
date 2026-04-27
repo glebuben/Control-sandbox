@@ -375,11 +375,7 @@ $$
 Then
 
 $$
-\dot{r}
-=
-F(s)
-+
-B(s)\delta_e.
+\dot{r}=F(s)+B(s)\delta_e.
 $$
 
 Choose the desired stable dynamics
@@ -403,11 +399,7 @@ $$
 Thus, the nominal clean-wing controller is
 
 $$
-\boxed{
-\delta_{e,nom}
-=
-\frac{-F(s)-k_r r}{B(s)}
-}.
+\boxed{\delta_{e,nom}=\frac{-F(s)-k_r r}{B(s)}}.
 $$
 
 ---
@@ -425,9 +417,7 @@ $$
 Then
 
 $$
-\dot{\mathcal{V}}_0
-=
-r\dot{r}.
+\dot{\mathcal{V}}_0=r\dot{r}.
 $$
 
 Since the controller imposes
@@ -439,20 +429,13 @@ $$
 we get
 
 $$
-\dot{\mathcal{V}}_0
-=
-r(-k_r r),
+\dot{\mathcal{V}}_0=r(-k_r r),
 $$
 
 therefore
 
 $$
-\boxed{
-\dot{\mathcal{V}}_0
-=
--k_r r^2
-\leq0
-}.
+\boxed{\dot{\mathcal{V}}_0=-k_r r^2\leq0}.
 $$
 
 Hence $r$ is stable. Since
@@ -506,29 +489,13 @@ $$
 and the estimation error
 
 $$
-\boxed{
-\widetilde{\Delta C}_{L_\alpha}
-=
-\widehat{\Delta C}_{L_\alpha}
--
-\Delta C_{L_\alpha}
-}.
+\boxed{\widetilde{\Delta C}_{L_\alpha}=\widehat{\Delta C}_{L_\alpha}-\Delta C_{L_\alpha}}.
 $$
 
 The adaptive controller is
 
 $$
-\boxed{
-\delta_e
-=
-\frac{
--F(s)
--k_r r
--Y(s)\widehat{\Delta C}_{L_\alpha}
-}{
-B(s)
-}
-}.
+\boxed{\delta_e=\frac{-F(s)-k_r r-Y(s)\widehat{\Delta C}_{L_\alpha}}{B(s)}}.
 $$
 
 Equivalently,
@@ -540,58 +507,31 @@ $$
 where
 
 $$
-\boxed{
-\delta_{e,nom}
-=
-\frac{-F(s)-k_r r}{B(s)}
-}
+\boxed{\delta_{e,nom}=\frac{-F(s)-k_r r}{B(s)}}
 $$
 
 and
 
 $$
-\boxed{
-\delta_{e,adapt}
-=
--
-\frac{Y(s)\widehat{\Delta C}_{L_\alpha}}{B(s)}
-}.
+\boxed{\delta_{e,adapt}=-\frac{Y(s)\widehat{\Delta C}_{L_\alpha}}{B(s)}}.
 $$
 
 Substituting the adaptive controller into
 
 $$
-\dot{r}
-=
-F(s)
-+
-B(s)\delta_e
-+
-Y(s)\Delta C_{L_\alpha}
+\dot{r}=F(s)+B(s)\delta_e+Y(s)\Delta C_{L_\alpha}
 $$
 
 gives
 
 $$
-\dot{r}
-=
--k_r r
--
-Y(s)\widehat{\Delta C}_{L_\alpha}
-+
-Y(s)\Delta C_{L_\alpha}.
+\dot{r}=-k_r r-Y(s)\widehat{\Delta C}_{L_\alpha}+Y(s)\Delta C_{L_\alpha}.
 $$
 
 Therefore,
 
 $$
-\boxed{
-\dot{r}
-=
--k_r r
--
-Y(s)\widetilde{\Delta C}_{L_\alpha}
-}.
+\boxed{\dot{r}=-k_r r-Y(s)\widetilde{\Delta C}_{L_\alpha}}.
 $$
 
 ---
