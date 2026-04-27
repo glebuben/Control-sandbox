@@ -1,46 +1,112 @@
 """
 main.py — entry point.
 
-Usage:
-    python main.py                            # defaults: 30s, icing at 10s, 30% severity
-    python main.py --t-ice 8 --severity 0.4  # custom scenario
-    python main.py --no-pygame               # skip interactive dashboard
-    python main.py --no-matplotlib           # skip static plots
+Simulation flags
+----------------
+  --t-end FLOAT       Total simulation time in seconds (default 200)
+  --t-ice FLOAT       Icing onset time (default 10)
+  --severity FLOAT    Fraction of C_La lost to icing (default 0.30)
+  --V-trim FLOAT      Trim airspeed m/s (default 60)
+  --alpha-ref FLOAT   Reference AoA in degrees (default = trim alpha 4 deg)
+  --dt FLOAT          Integration timestep (default 0.01)
+
+Plot / output flags  (all OFF by default — opt in to what you want)
+--------------------------------------------------------------------
+  --plots             Time-series matplotlib plots (comparison of both runs)
+  --phase             Phase portraits saved to <out-dir>/phase_portraits/
+  --lyapunov          Lyapunov function value plots saved to <out-dir>/
+  --animation         Open interactive pygame aircraft window
+  --animate-controller {adaptive,baseline,both}
+                      Which controller to show in animation/GIF (default: adaptive)
+  --gif               Export animated GIF of aircraft view
+  --gif-step INT      Sample every N-th frame for GIF (default 15)
+  --gif-fps  INT      GIF frame rate (default 25)
+
+Output directory
+----------------
+  --out-dir STR       Root output directory (default "results")
+
+Controller mode flags
+---------------------
+  --compare           (legacy) same as default — always runs both controllers
+  --adaptation        (legacy) run adaptive only, skip baseline for speed
+
+Examples
+--------
+  python main.py                             # run both, no plots
+  python main.py --plots --lyapunov          # time-series + Lyapunov plots
+  python main.py --phase                     # phase portraits only
+  python main.py --gif                       # GIF only (no window)
+  python main.py --animation --gif                          # adaptive window + GIF
+  python main.py --animation --animate-controller baseline  # baseline window
+  python main.py --gif --animate-controller both            # GIF for both
+  python main.py --plots --phase --lyapunov --gif   # everything static + GIF
 """
 
 import argparse, os, sys
 import numpy as np
 
-from simulation           import SimConfig, run_simulation
-from visualization        import plot_matplotlib
-from visualization_pygame import run_pygame_dashboard
+from simulation            import SimConfig, run_simulation
+from visualization         import plot_matplotlib
+from visualization_phase   import plot_phase_portraits
+from visualization_lyapunov import plot_lyapunov
+from visualization_aircraft import run_aircraft_view, export_gif
+import pygame
 
 
 def _parse():
-    p = argparse.ArgumentParser()
-    p.add_argument("--t-end",     type=float, default=200.0)
-    p.add_argument("--t-ice",     type=float, default=10.0)
-    p.add_argument("--severity",  type=float, default=0.30,
-                   help="Fraction of C_La lost to icing (default 0.30 = 30%%)")
-    p.add_argument("--V-trim",    type=float, default=60.0)
-    p.add_argument("--alpha-ref", type=float, default=None,
-                   help="Reference alpha [deg]; default = trim alpha (4 deg)")
-    p.add_argument("--dt",        type=float, default=0.01)
-    p.add_argument("--no-matplotlib", action="store_true")
-    p.add_argument("--no-pygame",     action="store_true")
-    p.add_argument("--out-dir",   type=str,   default="results")
-    # NEW MODES
-    p.add_argument("--adaptation", action="store_true", help="Run adaptive controller only")
-    p.add_argument("--compare",    action="store_true", help="Run both and compare")
-    
+    p = argparse.ArgumentParser(
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        description=__doc__,
+    )
+    # Simulation
+    p.add_argument("--t-end",      type=float, default=200.0)
+    p.add_argument("--t-ice",      type=float, default=10.0)
+    p.add_argument("--severity",   type=float, default=0.30)
+    p.add_argument("--V-trim",     type=float, default=60.0)
+    p.add_argument("--alpha-ref",  type=float, default=None)
+    p.add_argument("--dt",         type=float, default=0.01)
+    p.add_argument("--out-dir",    type=str,   default="results")
+
+    # Output selection  (opt-in)
+    p.add_argument("--plots",      action="store_true",
+                   help="Time-series matplotlib plots")
+    p.add_argument("--phase",      action="store_true",
+                   help="Phase portraits (saved in <out-dir>/phase_portraits/)")
+    p.add_argument("--lyapunov",   action="store_true",
+                   help="Lyapunov function value plots")
+    p.add_argument("--animation",  action="store_true",
+                   help="Open interactive pygame aircraft window")
+    p.add_argument("--gif",        action="store_true",
+                   help="Export animated GIF of aircraft visualisation")
+    p.add_argument("--gif-step",   type=int, default=15,
+                   help="Sample every N-th frame for GIF (default 15)")
+    p.add_argument("--gif-fps",    type=int, default=25,
+                   help="GIF frame rate (default 25)")
+    p.add_argument("--animate-controller", type=str, default="adaptive",
+                   choices=["adaptive", "baseline", "both"],
+                   help="Controller to show in animation/GIF (default: adaptive)")
+
+    # Legacy controller-mode flags (kept for backwards compatibility)
+    p.add_argument("--adaptation", action="store_true",
+                   help="(legacy) run adaptive controller only")
+    p.add_argument("--compare",    action="store_true",
+                   help="(legacy) run both controllers and compare — this is the default")
+
+    # Legacy disable flags (kept for backwards compatibility)
+    p.add_argument("--no-matplotlib", action="store_true",
+                   help="(legacy) suppress all matplotlib output")
+    p.add_argument("--no-pygame",     action="store_true",
+                   help="(legacy) suppress pygame window")
+
     return p.parse_args()
 
 
-def _summary(results):
+def _summary(results, label=""):
     t   = results["t"]
     adp = results["adaptive_mode"]
 
-    sw  = int(np.argmax(adp))
+    sw   = int(np.argmax(adp))
     t_sw = float(t[sw]) if adp[sw] else None
 
     hat        = results["delta_CL_alpha_hat"][-1]
@@ -49,7 +115,7 @@ def _summary(results):
     e_fin      = np.rad2deg(results["e_alpha"][-1])
 
     print("=" * 58)
-    print("  SIMULATION SUMMARY")
+    print(f"  SIMULATION SUMMARY  {label}")
     print("=" * 58)
     print(f"  Duration              : {t[-1]:.1f} s")
     print(f"  C_La clean / iced     : {results['C_La_clean']:.3f} / {results['C_La_iced']:.3f}")
@@ -84,52 +150,73 @@ def main():
         alpha_ref          = alpha_ref_rad,
     )
 
-    # 1. Run Baseline
-    print("\nRunning Baseline Controller (Adaptation OFF)...")
+    # ---- Always run both controllers -----------------------------------
+    print("\nRunning Baseline Controller (adaptation OFF) ...")
     res_base = run_simulation(config=cfg, use_adaptation=False)
 
-    # 2. Run Adaptive
-    print("\nRunning Adaptive Controller (Adaptation ON)...")
-    res_adp = run_simulation(config=cfg, use_adaptation=True)
+    print("\nRunning Adaptive Controller (adaptation ON) ...")
+    res_adp  = run_simulation(config=cfg, use_adaptation=True)
 
-    # 3. Summaries
     print("\n--- BASELINE SUMMARY ---")
-    _summary(res_base)
+    _summary(res_base, "BASELINE")
     print("\n--- ADAPTIVE SUMMARY ---")
-    _summary(res_adp)
+    _summary(res_adp,  "ADAPTIVE")
 
-    if args.compare:
-        print("\n[Mode: COMPARE] Running Baseline and Adaptive...")
-        res_base = run_simulation(config=cfg, use_adaptation=False)
-        res_adp  = run_simulation(config=cfg, use_adaptation=True)
-        
-        _summary(res_base)
-        _summary(res_adp)
-        
-        if not args.no_matplotlib:
-            plot_matplotlib(res_adp, res_base=res_base, save_path=os.path.join(args.out_dir, "comparison"))
-        results_to_viz = res_adp # For PyGame
+    os.makedirs(args.out_dir, exist_ok=True)
 
-    elif args.adaptation:
-        print("\n[Mode: ADAPTIVE] Running Adaptive only...")
-        res_adp = run_simulation(config=cfg, use_adaptation=True)
-        _summary(res_adp)
-        
-        if not args.no_matplotlib:
-            plot_matplotlib(res_adp, save_path=os.path.join(args.out_dir, "adaptive"))
-        results_to_viz = res_adp
+    # ---- Legacy --no-matplotlib flag overrides new flags ---------------
+    if args.no_matplotlib:
+        args.plots = args.phase = args.lyapunov = False
 
-    else:
-        print("\n[Mode: BASELINE] Running Baseline only...")
-        res_base = run_simulation(config=cfg, use_adaptation=False)
-        _summary(res_base)
-        
-        if not args.no_matplotlib:
-            plot_matplotlib(res_base, save_path=os.path.join(args.out_dir, "baseline"))
-        results_to_viz = res_base
+    # ---- Time-series plots ---------------------------------------------
+    if args.plots:
+        print("\n[plots] Generating time-series plots ...")
+        plot_matplotlib(
+            res_adp,
+            res_base=res_base,
+            save_path=os.path.join(args.out_dir, "comparison"),
+        )
 
-    if not args.no_pygame:
-        run_pygame_dashboard(results_to_viz)
+    # ---- Phase portraits -----------------------------------------------
+    if args.phase:
+        phase_dir = os.path.join(args.out_dir, "phase_portraits")
+        print(f"\n[phase] Generating phase portraits → {phase_dir}/")
+        plot_phase_portraits(res_adp, res_base, save_dir=phase_dir)
+
+    # ---- Lyapunov plots ------------------------------------------------
+    if args.lyapunov:
+        print(f"\n[lyapunov] Generating Lyapunov plots → {args.out_dir}/")
+        plot_lyapunov(res_adp, res_base=res_base, save_dir=args.out_dir)
+
+    # ---- Determine which result(s) to animate -------------------------
+    _anim_ctrl = args.animate_controller
+    _anim_runs = []
+    if _anim_ctrl in ("adaptive", "both"):
+        _anim_runs.append((res_adp,  "Adaptive"))
+    if _anim_ctrl in ("baseline", "both"):
+        _anim_runs.append((res_base, "Baseline"))
+
+    # ---- GIF export (headless, no display needed) ----------------------
+    if args.gif:
+        pygame.init()
+        for _res, _lbl in _anim_runs:
+            _gif_path = os.path.join(
+                args.out_dir,
+                f"aircraft_{_lbl.lower()}.gif",
+            )
+            print(f"\n[gif] Exporting {_lbl} GIF -> {_gif_path}")
+            export_gif(_res, _gif_path,
+                       step=args.gif_step, fps=args.gif_fps, label=_lbl)
+        pygame.quit()
+
+    # ---- Interactive aircraft window -----------------------------------
+    want_window = args.animation and not args.no_pygame
+    if want_window:
+        for _res, _lbl in _anim_runs:
+            _gif_path = os.path.join(args.out_dir, f"aircraft_{_lbl.lower()}.gif")
+            print(f"\n[animation] Opening {_lbl} aircraft window ...")
+            run_aircraft_view(_res, label=_lbl, gif_path=_gif_path)
+
 
 if __name__ == "__main__":
     main()
