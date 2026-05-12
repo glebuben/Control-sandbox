@@ -43,7 +43,7 @@ python main.py
 **System:** Nonlinear Flexible-Joint Drive  
 **Control method:** Backstepping controller   
 **Goal:** Control the load via flexible joint using the contol for motor.
-![alt text](Project_3_Backsteppinig_Flexible_Joint_Drive/animations/animation.gif)
+![alt text](Project_3_Backsteppinig_Flexible_Joint_Drive/animations/animation_backstepping.gif)
 **Run Project 3:**
 ```bash
 cd Project_3_Backstepping_Flexible_Joint_Drive/src
