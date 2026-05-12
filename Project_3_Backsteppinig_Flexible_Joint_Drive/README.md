@@ -4,23 +4,23 @@
 The project includes a 4-DOF nonlinear plant model, nominal backstepping controller, baseline comparison, static plots (time-series, phase portraits, Lyapunov function evolution), and an interactive `pygame` visualisation with GIF export.
 
 
-📋 Brief Description
-A compliant shaft couples a motor inertia to a load inertia. The cubic hardening term shifts the resonance frequency with deflection, while smooth $\tanh(\cdot)$ friction models velocity-dependent dissipation. The backstepping controller recursively stabilises load position by treating transmitted torque as a virtual control, guaranteeing asymptotic tracking without linearisation or gain scheduling. The final actuator command is delivered as motor current, preserving Lyapunov stability under ideal current tracking.
+📋 Brief Description    
+ The backstepping controller recursively stabilises load position by treating transmitted torque as a virtual control, guaranteeing asymptotic tracking without linearisation or gain scheduling. The final actuator command is delivered as motor current, preserving Lyapunov stability under ideal current tracking.
+![alt text](animations/animation_backstepping.gif)
 
 | Component | Description |
 |-----------|-------------|
-| **Baseline controller** | PID tuned at small-signal equilibrium; loses damping during large twist or friction saturation |
+| **Baseline controller** | PID and PD tuned at small-signal equilibrium; loses damping during large twist or friction saturation |
 | **Backstepping controller** | Recursive Lyapunov design using coupling torque as virtual control; exact cancellation of $k_3\delta^3$ and $T_f(\omega)$, implemented via current command $i = \tau_m^*/K_t$ |
 | **Flexible-joint dynamics** | Nonlinear non-collocated mechanical system with cubic stiffness & smooth Coulomb-viscous friction |
 
-Mathematical reference: The complete derivation of the nonlinear state-space model, current-actuator mapping, energy passivity analysis, and recursive backstepping control law with stability proofs is provided in `(model_motor_draftV3.md)` and `(readme_flexible_joint_backstepping_theory_v2.md)`.
+The complete derivation of the nonlinear state-space model, current-actuator mapping, energy passivity analysis, and recursive backstepping control law with stability proofs is provided in `(model_motor_draftV3.md)` and `(readme_flexible_joint_backstepping_theory_v2.md)`.
 
 **Run Project 3:**
 ```bash
 cd Project_3_Backstepping_Flexible_Joint_Drive/src
 python main.py         
 ```
-See `[code_description.md](code_description.md)` for the full list of command-line arguments and output options.
 
 🔧 Architecture of Project
 ```
@@ -39,28 +39,28 @@ Project_3_Backstepping_Flexible_Joint_Drive/
 ├── readme_flexible_joint_backstepping_theory_v2.md # control law, current actuation & Lyapunov proofs
 └── README.md
 ```
-📖 See `[code_description.md](code_description.md)` for a detailed breakdown of each module, its public API, and step-by-step usage tutorials.
 
 ## 1. System Description & Symbol Dictionary
-Full mathematical derivation: `[model_motor_draftV3.md](model_motor_draftV3.md)` §1-2, `[readme_flexible_joint_backstepping_theory_v2.md](readme_flexible_joint_backstepping_theory_v2.md)` §1
+Full mathematical derivation: `(model_motor_draftV3.md)` §1-2, `(readme_flexible_joint_backstepping_theory_v2.md)` §1
 
-*Scheme only for main idea reference. Description of symbols below.*
+*Scheme with meanings only for main idea reference. Description of symbols below.*
+![alt text](figures/643f7356-6309-46ce-a87d-aaad20e8a6ec.jpg)
 
 **State & Control Vectors**
 $$
-x = \begin{bmatrix} \theta_l \\ \omega_l \\ \theta_m \\ \omega_m \end{bmatrix} \in \mathbb{R}^4
+S = \begin{bmatrix} \theta_l \\ \omega_l \\ \theta_m \\ \omega_m \end{bmatrix} \in \mathbb{R}^4
 $$
 $$
-u = i \in \mathbb{R}
+a = i \in \mathbb{R}
 $$
 | Symbol | Meaning | Units |
 |--------|---------|-------|
-| $x$ | State vector | – |
+| $S$ | State vector | – |
 | $\theta_l$ | Load angular position | rad |
 | $\omega_l$ | Load angular velocity | rad/s |
 | $\theta_m$ | Motor angular position | rad |
 | $\omega_m$ | Motor angular velocity | rad/s |
-| $u$ | Control input | A |
+| $a$ | Control input | A |
 | $i$ | Motor armature current | A |
 
 **Nonlinear Dynamics**
@@ -85,7 +85,7 @@ $$
 | $K_t$ | Motor torque constant | N·m/A |
 
 ## 2. Nonlinear Coupling & Friction Model
-Full derivation: `[model_motor_draftV3.md](model_motor_draftV3.md)` §2, `[readme_flexible_joint_backstepping_theory_v2.md](readme_flexible_joint_backstepping_theory_v2.md)` §1-3
+Full derivation: `(model_motor_draftV3.md)` §2, `(readme_flexible_joint_backstepping_theory_v2.md)` §1-3
 
 **Relative Coordinates & Transmitted Torque**
 From kinematic coupling and constitutive shaft behaviour:
@@ -114,7 +114,7 @@ $$T_f(\omega) = F_c \tanh\left(\frac{\omega}{v_s}\right) + B_v \omega$$
 The $\tanh(\cdot)$ function is $C^\infty$ everywhere, with derivative $\frac{d}{d\omega}T_f = \frac{F_c}{v_s}\operatorname{sech}^2(\omega/v_s) + B_v$. This guarantees smooth recursive backstepping differentiation and avoids Filippov nonsmooth analysis. Near zero velocity, $T_f(\omega) \approx (F_c/v_s + B_v)\omega$, acting as enhanced viscous damping.
 
 ## 3. Control Strategy & Lyapunov Proofs
-Full derivation: `[readme_flexible_joint_backstepping_theory_v2.md](readme_flexible_joint_backstepping_theory_v2.md)` §7-9, §13
+Full derivation: `(readme_flexible_joint_backstepping_theory_v2.md)` §7-9, §13
 
 ### 3.1 Error Coordinates & Virtual Controls
 Define tracking error and first virtual control:
@@ -122,13 +122,13 @@ $$z_1 = \theta_l - \theta_d, \quad \alpha_1 = \dot{\theta}_d - c_1 z_1, \quad z_
 The load velocity error dynamics:
 $$\dot{z}_2 = \frac{1}{J_l}\left(\tau_c - T_{f,l}\right) - \dot{\alpha}_1$$
 
-### 3.2 Desired Coupling Torque (Step 2)
+### 3.2 Desired Coupling Torque 
 Treat $\tau_c$ as intermediate virtual control. Choose:
 $$\tau_c^* = J_l\left(\dot{\alpha}_1 - c_2 z_2 - z_1\right) + T_{f,l}$$
 Define torque tracking error: $z_3 = \tau_c - \tau_c^*$. Then:
 $$\dot{z}_2 = -c_2 z_2 - z_1 + \frac{1}{J_l}z_3$$
 
-### 3.3 Final Backstepping Law & Current Mapping (Step 3)
+### 3.3 Final Backstepping Law & Current Mapping 
 The coupling torque derivative is $\dot{\tau}_c = \frac{b K_t}{J_m}u + \Phi(x)$, where $\Phi(x)$ contains known nonlinearities. The backstepping design first computes the required electromagnetic torque:
 $$\boxed{\tau_m^* = \frac{J_m}{b}\left[-\Phi(x) + \dot{\tau}_c^* - c_3 z_3 - \frac{1}{J_l}z_2\right]}$$
 For practical actuation, torque is realised via motor current $u=i$:
@@ -151,7 +151,7 @@ $$\dot{\mathcal{V}} = -c_1 z_1^2 - c_2 z_2^2 - c_3 z_3^2 \leq 0$$
 Since $\dot{\mathcal{V}}$ is negative definite, $z_1(t), z_2(t), z_3(t) \to 0$ asymptotically. The internal shaft dynamics $b\dot{\delta} + k\delta + k_3\delta^3 = \tau_c$ are input-to-state stable (ISS), guaranteeing bounded twist under bounded control. Current saturation $|i| \leq i_{\max}$ introduces local stability margins but preserves convergence within actuator authority.
 
 ## 4. Parameters Reference
-Source: `[code_description.md](code_description.md)`, `[model_motor_draftV3.md](model_motor_draftV3.md)` §7, `[readme_flexible_joint_backstepping_theory_v2.md](readme_flexible_joint_backstepping_theory_v2.md)` §13
+Source: `(model_motor_draftV3.md)` §7, `(readme_flexible_joint_backstepping_theory_v2.md)` §13
 
 **System Parameters (Lab-Scale Flexible Joint)**
 | Symbol | Value | Units | Meaning |
@@ -182,7 +182,7 @@ Interactive Pygame Controls:
 |-----|--------|-----|--------|
 | SPACE / → | Step forward | ← | Step backward |
 | R | Restart | A | Toggle auto-play |
-| + / - | Speed control | S / G | Save PNG / Export GIF |
+| PgUp / PgDown | Speed control | S / G | Save PNG / Export GIF |
 | Q / Esc | Quit | Click scrubber | Seek to time |
 
 ## 6. Results
@@ -193,5 +193,5 @@ The backstepping controller shows a brief transient during initialisation, then 
 📝 Discussion & Limitations
 The nominal backstepping law guarantees large-domain asymptotic stability under exact model knowledge and ideal current tracking. In practice, parameter uncertainty ($J_l, k, k_3, b, K_t$) and measurement noise on velocity estimates can degrade exact cancellation. The control law requires $\dot{\tau}_c^*$, which involves time derivatives of reference signals and nonlinear terms; in implementation, command filters or dynamic surface control are recommended to avoid noise amplification. Current saturation introduces local stability margins, requiring gain scheduling or anti-windup augmentation. Bounded disturbances preserve Input-to-State Stability (ISS), with ultimate error bounds inversely proportional to $c_1, c_2, c_3$. For experimental deployment, adaptive laws or disturbance observers can be integrated into the backstepping recursion without altering the core Lyapunov structure.
 
-AI guidance
+***AI guidance***   
 Acknowledgement of AI usage for theoretical information research, structural formatting of the documentation, controller tuning guidance, and current-actuation mapping validation.
