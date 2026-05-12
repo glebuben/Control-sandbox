@@ -41,15 +41,15 @@ python main.py
 
 ### Project 3 – Backstepping control Flexible Joint Drive
 **System:** Nonlinear Flexible-Joint Drive  
-**Control method:** Certanty equivalance controller   
-**Goal:** Stabilise the aircraft in case of icing.
+**Control method:** Backstepping controller   
+**Goal:** Stabilize the load via flexible joint using the contol for motor.
 ![alt text] GIIIIFFFF
 **Run Project 3:**
 ```bash
 cd Project_3_Backstepping_Flexible_Joint_Drive/src
 python main.py         
 ```
-*Results:* The aircraft is stabilised, the  the controller works.
+*Results:* The load is controlled, the  the controller works.
 
 ### Project 4 – Model Predictive Control (under maintenance)
 Will implement a nonlinear MPC for a constrained system 
