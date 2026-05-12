@@ -175,3 +175,30 @@ Linear control techniques such as PID tuning, LQR, or pole placement rely on a f
 | $U(\delta)$ | Elastic potential energy | J | $\frac{1}{2}k\delta^2 + \frac{1}{4}k_3\delta^4$ |
 | $\Phi(x)$ | Nonlinear drift in $\dot{\tau}_c$ | N·m/s | Coupling derivative terms for backstepping |
 
+---
+
+# 7. Representative Parameters Table (Lab-Scale Flexible Joint)
+
+The following table provides realistic, physically consistent parameter values for a laboratory-scale flexible-joint servo system. These values are suitable for simulation, controller tuning, and experimental validation of the nonlinear backstepping design.
+
+| Parameter | Symbol | Typical Value | Units | Notes / Physical Interpretation |
+|:---|:---|:---|:---|:---|
+| **Load inertia** | $J_l$ | $0.025$ | kg·m² | Aluminum disk + adjustable payload weights |
+| **Motor inertia** | $J_m$ | $0.0032$ | kg·m² | Rotor + encoder hub + coupling adapter |
+| **Linear torsional stiffness** | $k$ | $12.5$ | N·m/rad | Steel torsion shaft, $L \approx 50$ mm, $d \approx 6$ mm |
+| **Cubic stiffness coefficient** | $k_3$ | $150$ – $500$ | N·m/rad³ | Hardening due to geometric nonlinearity; becomes significant for $\|\delta\| > 0.1$ rad |
+| **Coupling damping** | $b$ | $0.15$ | N·m·s/rad | Structural + bearing losses; identified from free-decay tests |
+| **Load-side Coulomb friction** | $F_{c,l}$ | $0.08$ | N·m | Bearing + seal friction on load side |
+| **Load-side Stribeck velocity** | $v_{s,l}$ | $0.05$ | rad/s | Smooth transition threshold; $\tanh(\omega/v_s) \approx \omega/v_s$ for $\|\omega\| \ll v_s$ |
+| **Load-side viscous friction** | $B_{v,l}$ | $0.02$ | N·m·s/rad | Linear damping component |
+| **Motor-side Coulomb friction** | $F_{c,m}$ | $0.04$ | N·m | Motor bearing + brush friction |
+| **Motor-side Stribeck velocity** | $v_{s,m}$ | $0.03$ | rad/s | Typically lower than load side due to higher motor speeds |
+| **Motor-side viscous friction** | $B_{v,m}$ | $0.015$ | N·m·s/rad | Includes electrical damping from back-EMF |
+| **Continuous torque limit** | $\tau_{\text{cont}}$ | $2.4$ | N·m | Thermal limit for DC servo motor |
+| **Peak torque limit** | $\tau_{\text{peak}}$ | $7.2$ | N·m | Short-duration overload (≤ 3 s) |
+| **Nominal resonant frequency** | $\omega_n$ | $\approx 22.3$ | rad/s | $\sqrt{k\left(\frac{1}{J_l}+\frac{1}{J_m}\right)}$; shifts with $\delta$ due to $k_3$ |
+| **Damping ratio (linearized)** | $\zeta$ | $0.03$ – $0.08$ | – | Lightly damped resonance; backstepping adds virtual damping |
+| **Encoder resolution (both sides)** | – | $4096$ | PPR | Quadrature decoding → $16384$ counts/rev; $\approx 3.8 \times 10^{-4}$ rad resolution |
+| **Max allowable shaft twist** | $\delta_{\max}$ | $\pm 0.3$ | rad | Mechanical stop / safety limit; cubic term contributes $\approx 15\%$ of torque at this deflection |
+
+---
