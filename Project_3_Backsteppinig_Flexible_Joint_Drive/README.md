@@ -1,18 +1,19 @@
 # 🔌 Project 3 – Backstepping Control of a nonlinear Flexible-Joint Drive
-A simulation of a nonlinear two-inertia servo system with cubic torsional stiffness and smooth friction, controlled via a recursive Lyapunov-based backstepping law.
-The project includes a 4-DOF nonlinear plant model, nominal backstepping controller, baseline linear comparison, static plots (time-series, phase portraits, Lyapunov function evolution), and an interactive `pygame` visualisation with headless GIF export.
-📖 Code reference: Repository structure, module descriptions, all CLI arguments, and usage tutorials are documented in `[code_description.md](code_description.md)`.
+**A simulation of a nonlinear motor system with cubic torsional stiffness and smooth friction, controlled via a recursive Lyapunov-based backstepping law.**
+
+The project includes a 4-DOF nonlinear plant model, nominal backstepping controller, baseline comparison, static plots (time-series, phase portraits, Lyapunov function evolution), and an interactive `pygame` visualisation with GIF export.
+
 
 📋 Brief Description
 A compliant shaft couples a motor inertia to a load inertia. The cubic hardening term shifts the resonance frequency with deflection, while smooth $\tanh(\cdot)$ friction models velocity-dependent dissipation. The backstepping controller recursively stabilises load position by treating transmitted torque as a virtual control, guaranteeing asymptotic tracking without linearisation or gain scheduling. The final actuator command is delivered as motor current, preserving Lyapunov stability under ideal current tracking.
 
 | Component | Description |
 |-----------|-------------|
-| **Baseline controller** | Fixed-gain LQR / PID tuned at small-signal equilibrium; loses damping during large twist or friction saturation |
+| **Baseline controller** | PID tuned at small-signal equilibrium; loses damping during large twist or friction saturation |
 | **Backstepping controller** | Recursive Lyapunov design using coupling torque as virtual control; exact cancellation of $k_3\delta^3$ and $T_f(\omega)$, implemented via current command $i = \tau_m^*/K_t$ |
 | **Flexible-joint dynamics** | Nonlinear non-collocated mechanical system with cubic stiffness & smooth Coulomb-viscous friction |
 
-Mathematical reference: The complete derivation of the nonlinear state-space model, current-actuator mapping, energy passivity analysis, and recursive backstepping control law with stability proofs is provided in `[model_motor_draftV3.md](model_motor_draftV3.md)` and `[readme_flexible_joint_backstepping_theory_v2.md](readme_flexible_joint_backstepping_theory_v2.md)`.
+Mathematical reference: The complete derivation of the nonlinear state-space model, current-actuator mapping, energy passivity analysis, and recursive backstepping control law with stability proofs is provided in `(model_motor_draftV3.md)` and `(readme_flexible_joint_backstepping_theory_v2.md)`.
 
 **Run Project 3:**
 ```bash
