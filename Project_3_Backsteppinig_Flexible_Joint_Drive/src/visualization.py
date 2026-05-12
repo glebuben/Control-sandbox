@@ -8,9 +8,9 @@ Generates
   • Time-domain state & error plots  (--plots)
   • Phase portraits  θ_l–ω_l and θ_m–ω_m  (--phase)
   • Lyapunov function V(t) and energy E(t)  (--lyapunov)
+  • Shaft internal dynamics  (--shaft)
 
 All figures are saved to the `figures/` directory at the project root.
-Animation stubs are present but deferred per spec  (--gif / --animate).
 """
 
 from __future__ import annotations
@@ -49,11 +49,11 @@ PALETTE = {
     "bg":        "#0d0f14",
     "panel":     "#13161e",
     "grid":      "#1f2433",
-    "accent0":   "#4fc3f7",   # load / position
-    "accent1":   "#f06292",   # motor
-    "accent2":   "#aed581",   # reference / desired
-    "accent3":   "#ffb74d",   # coupling torque
-    "accent4":   "#ce93d8",   # energy / Lyapunov
+    "accent0":   "#4fc3f7",   # load / position / cyan
+    "accent1":   "#f06292",   # motor / pink
+    "accent2":   "#aed581",   # reference / desired / green
+    "accent3":   "#ffb74d",   # coupling torque / amber
+    "accent4":   "#ce93d8",   # energy / Lyapunov / purple
     "error":     "#ef5350",
     "text":      "#e0e0e0",
     "subtext":   "#90a4ae",
@@ -63,6 +63,71 @@ _FONT_TITLE = {"fontsize": 13, "fontweight": "bold", "color": PALETTE["text"]}
 _FONT_LABEL = {"fontsize": 10, "color": PALETTE["subtext"]}
 _FONT_TICK  = {"labelsize": 8,  "colors": PALETTE["subtext"]}
 
+# ── Per-controller colour identity ────────────────────────────────────
+# Backstepping gets a vivid cyan/teal family.
+# PD gets amber/orange.
+# PID gets coral/red.
+# Any other result gets purple or a sequential fallback.
+#
+# Colours are (primary, secondary, reference) triples.
+# primary   = main signal  (θ_l, ω_l, τ_c, u, e₁ …)
+# secondary = aux signal   (θ_m, ω_m) drawn dashed, same hue but lighter
+# ref_col   = reference signal θ_d (always green-ish)
+_CTRL_COLORS = {
+    "backstepping": ("#00e5ff",  "#80deea",  "#aed581"),   # cyan family
+    "pd":           ("#ffab40",  "#ffe0b2",  "#c8e6c9"),   # amber family
+    "pid":          ("#ff5252",  "#ff8a80",  "#e8f5e9"),   # red family
+}
+_FALLBACK_COLORS = [
+    ("#ce93d8", "#e1bee7", "#aed581"),   # purple
+    ("#80cbc4", "#b2dfdb", "#c8e6c9"),   # teal
+    ("#fff176", "#fff9c4", "#dcedc8"),   # yellow
+]
+
+_PHASE_CMAPS = {
+    "backstepping": "cool",
+    "pd":           "autumn",
+    "pid":          "hot",
+}
+_FALLBACK_CMAPS = ["plasma", "viridis", "spring"]
+
+
+def _result_colors(r: SimResult, idx: int) -> tuple[str, str, str]:
+    """Return (primary, secondary, ref) hex colours for a SimResult."""
+    lbl = r.label.lower()
+    for key, triple in _CTRL_COLORS.items():
+        if key in lbl:
+            return triple
+    return _FALLBACK_COLORS[idx % len(_FALLBACK_COLORS)]
+
+
+def _result_cmap(r: SimResult, idx: int) -> str:
+    lbl = r.label.lower()
+    for key, cm in _PHASE_CMAPS.items():
+        if key in lbl:
+            return cm
+    return _FALLBACK_CMAPS[idx % len(_FALLBACK_CMAPS)]
+
+
+def _sort_results(results: list[SimResult]) -> list[SimResult]:
+    """
+    Return results sorted so backstepping is plotted LAST (on top).
+    Order: PD → PID → everything else → Backstepping.
+    """
+    def _rank(r: SimResult) -> int:
+        lbl = r.label.lower()
+        if "backstepping" in lbl:
+            return 2      # drawn last = on top
+        if "pid" in lbl:
+            return 1
+        return 0          # PD and unknowns first
+
+    return sorted(results, key=_rank)
+
+
+# ──────────────────────────────────────────────────────────────────────
+# Theme helpers
+# ──────────────────────────────────────────────────────────────────────
 
 def _apply_dark_style(fig: plt.Figure, axes):
     """Apply consistent dark engineering theme to a figure."""
@@ -96,6 +161,12 @@ def _save(fig: plt.Figure, name: str):
     plt.close(fig)
 
 
+def _legend(ax):
+    ax.legend(fontsize=7, framealpha=0.30,
+              labelcolor=PALETTE["text"], facecolor=PALETTE["panel"],
+              edgecolor=PALETTE["grid"])
+
+
 # ──────────────────────────────────────────────────────────────────────
 # 1 · Time-domain state & error plots
 # ──────────────────────────────────────────────────────────────────────
@@ -103,81 +174,84 @@ def _save(fig: plt.Figure, name: str):
 def plot_states(results: list[SimResult],
                 filename: str = "states.png") -> None:
     """
-    Six-panel time-domain figure:
-      Row 1 – angular positions (θ_l, θ_m) + reference
-      Row 2 – angular velocities (ω_l, ω_m)
-      Row 3 – coupling torque τ_c
-      Row 4 – control input u
-      Row 5 – tracking errors e₁, e₂
-      Row 6 – torque error e₃
+    Six-panel time-domain figure.
+    Results are sorted so backstepping is drawn last (on top).
+    Each controller gets a distinct colour family.
     """
+    sorted_r = _sort_results(results)
+
     fig = plt.figure(figsize=(14, 16))
     gs  = gridspec.GridSpec(6, 1, hspace=0.55, figure=fig)
     axes = [fig.add_subplot(gs[i]) for i in range(6)]
     _apply_dark_style(fig, axes)
 
-    for r in results:
+    ref_drawn = set()   # avoid duplicate θ_d legend entries
+
+    for idx, r in enumerate(sorted_r):
         t = r.t
-        lw = 1.6
+        pc, sc, rc = _result_colors(r, idx)
+        lw  = 2.0 if "backstepping" in r.label.lower() else 1.4
+        alp = 1.0 if "backstepping" in r.label.lower() else 0.75
 
         # ─ positions ─
-        axes[0].plot(t, r.x[:, 0], color=PALETTE["accent0"], lw=lw,
-                     label=f"θ_l  {r.label}")
-        axes[0].plot(t, r.x[:, 2], color=PALETTE["accent1"], lw=lw,
-                     linestyle="--", label=f"θ_m  {r.label}", alpha=0.8)
-        axes[0].plot(t, r.theta_d, color=PALETTE["accent2"], lw=1.0,
-                     linestyle=":", label="θ_d (ref)", alpha=0.9)
+        axes[0].plot(t, r.x[:, 0], color=pc, lw=lw, alpha=alp,
+                     label=fr"$\theta_l$  [{r.label}]")
+        axes[0].plot(t, r.x[:, 2], color=sc, lw=lw, alpha=alp * 0.8,
+                     linestyle="--", label=fr"$\theta_m$  [{r.label}]")
+        ref_lbl = r"$\theta_d$ (ref)" if "θ_d" not in ref_drawn else "_nolegend_"
+        ref_drawn.add("θ_d")
+        axes[0].plot(t, r.theta_d, color=rc, lw=1.0,
+                     linestyle=":", alpha=0.9, label=ref_lbl)
 
         # ─ velocities ─
-        axes[1].plot(t, r.x[:, 1], color=PALETTE["accent0"], lw=lw,
-                     label=f"ω_l  {r.label}")
-        axes[1].plot(t, r.x[:, 3], color=PALETTE["accent1"], lw=lw,
-                     linestyle="--", label=f"ω_m  {r.label}", alpha=0.8)
-        axes[1].plot(t, r.dtheta_d, color=PALETTE["accent2"], lw=1.0,
-                     linestyle=":", label="ω_d (ref)", alpha=0.9)
+        axes[1].plot(t, r.x[:, 1], color=pc, lw=lw, alpha=alp,
+                     label=fr"$\omega_l$  [{r.label}]")
+        axes[1].plot(t, r.x[:, 3], color=sc, lw=lw, alpha=alp * 0.8,
+                     linestyle="--", label=fr"$\omega_m$  [{r.label}]")
 
         # ─ coupling torque ─
-        axes[2].plot(t, r.tau_c, color=PALETTE["accent3"], lw=lw,
-                     label=f"τ_c  {r.label}")
+        axes[2].plot(t, r.tau_c, color=pc, lw=lw, alpha=alp,
+                     label=r.label)
 
         # ─ control input ─
-        axes[3].plot(t, r.u, color=PALETTE["accent4"], lw=lw,
-                     label=f"u  {r.label}")
+        axes[3].plot(t, r.u, color=pc, lw=lw, alpha=alp,
+                     label=r.label)
         axes[3].axhline(0, color=PALETTE["grid"], lw=0.8, linestyle="--")
 
         # ─ tracking errors ─
-        axes[4].plot(t, r.e1, color=PALETTE["accent0"], lw=lw,
-                     label=f"e₁=θ_l−θ_d  {r.label}")
-        axes[4].plot(t, r.e2, color=PALETTE["accent1"], lw=lw,
-                     linestyle="--", label=f"e₂=ω_l−α₁  {r.label}", alpha=0.8)
+        axes[4].plot(t, r.e1, color=pc, lw=lw, alpha=alp,
+                     label=fr"$e_1=\theta_l-\theta_d$  [{r.label}]")
+        axes[4].plot(t, r.e2, color=sc, lw=lw, alpha=alp * 0.8,
+                     linestyle="--", label=fr"$e_2$  [{r.label}]")
         axes[4].axhline(0, color=PALETTE["grid"], lw=0.8, linestyle="--")
 
-        # ─ torque error ─
-        axes[5].plot(t, r.e3, color=PALETTE["error"], lw=lw,
-                     label=f"e₃=τ_c−α₂  {r.label}")
+        # ─ torque / integral error ─
+        axes[5].plot(t, r.e3, color=pc, lw=lw, alpha=alp,
+                     label=fr"$e_3$  [{r.label}]")
         axes[5].axhline(0, color=PALETTE["grid"], lw=0.8, linestyle="--")
 
-    # Labels & titles
     titles = [
-        "Angular Positions  [rad]",
-        "Angular Velocities  [rad/s]",
-        "Coupling Torque τ_c  [N·m]",
-        "Motor Torque Command u  [N·m]",
-        "Tracking Errors e₁, e₂",
-        "Torque Error e₃  [N·m]",
+        r"Angular Positions  [rad]",
+        r"Angular Velocities  [rad/s]",
+        r"Coupling Torque $\tau_c$  [N$\cdot$m]",
+        r"Motor Torque Command $u$  [N$\cdot$m]",
+        r"Tracking Errors $e_1$, $e_2$",
+        r"Torque / Integral Error $e_3$",
     ]
     ylabels = [
-        "angle [rad]", "velocity [rad/s]",
-        "torque [N·m]", "torque [N·m]",
-        "error", "torque error [N·m]",
+        r"angle $\theta$ [rad]",
+        r"velocity $\omega$ [rad/s]",
+        r"$\tau_c$ [N$\cdot$m]",
+        r"$u$ [N$\cdot$m]",
+        r"error",
+        r"error",
     ]
     for ax, ttl, yl in zip(axes, titles, ylabels):
         ax.set_title(ttl, **_FONT_TITLE)
         _label_xy(ax, "time [s]", yl)
-        ax.legend(fontsize=7, framealpha=0.25,
-                  labelcolor=PALETTE["text"], facecolor=PALETTE["panel"])
+        _legend(ax)
 
-    fig.suptitle("Flexible-Joint Backstepping — Time Domain",
+    fig.suptitle(r"Flexible-Joint Drive — Time Domain Comparison",
                  fontsize=15, fontweight="bold",
                  color=PALETTE["text"], y=1.005)
     _save(fig, filename)
@@ -202,50 +276,44 @@ def _colored_line(ax, x, y, cmap="plasma", lw=1.5):
 def plot_phase_portraits(results: list[SimResult],
                          filename: str = "phase_portraits.png") -> None:
     """
-    Two-panel phase portrait:
-      Left  – load side  (θ_l, ω_l)
-      Right – motor side (θ_m, ω_m)
-
-    Trajectory colour encodes time (dark → bright = early → late).
+    Two-panel phase portrait (load side, motor side).
+    Backstepping plotted last; each controller gets its own colormap.
     """
+    sorted_r = _sort_results(results)
+
     fig, axes = plt.subplots(1, 2, figsize=(14, 6))
     _apply_dark_style(fig, axes)
 
-    cmaps = ["plasma", "viridis", "cool", "spring"]
+    for idx, r in enumerate(sorted_r):
+        cm  = _result_cmap(r, idx)
+        pc, _, _ = _result_colors(r, idx)
+        lw  = 2.0 if "backstepping" in r.label.lower() else 1.4
 
-    for idx, r in enumerate(results):
-        cm = cmaps[idx % len(cmaps)]
-
-        # Load-side portrait
-        lc1 = _colored_line(axes[0], r.x[:, 0], r.x[:, 1], cmap=cm)
+        lc1 = _colored_line(axes[0], r.x[:, 0], r.x[:, 1], cmap=cm, lw=lw)
         axes[0].scatter(r.x[0, 0], r.x[0, 1], color="white",
-                        zorder=5, s=40, marker="o", label=f"IC  {r.label}")
-        axes[0].scatter(r.x[-1, 0], r.x[-1, 1], color=PALETTE["accent2"],
+                        zorder=5, s=40, marker="o", label=fr"IC  [{r.label}]")
+        axes[0].scatter(r.x[-1, 0], r.x[-1, 1], color=pc,
                         zorder=5, s=60, marker="*")
 
-        # Motor-side portrait
-        lc2 = _colored_line(axes[1], r.x[:, 2], r.x[:, 3], cmap=cm)
+        _colored_line(axes[1], r.x[:, 2], r.x[:, 3], cmap=cm, lw=lw)
         axes[1].scatter(r.x[0, 2], r.x[0, 3], color="white",
-                        zorder=5, s=40, marker="o", label=f"IC  {r.label}")
-        axes[1].scatter(r.x[-1, 2], r.x[-1, 3], color=PALETTE["accent2"],
+                        zorder=5, s=40, marker="o", label=fr"IC  [{r.label}]")
+        axes[1].scatter(r.x[-1, 2], r.x[-1, 3], color=pc,
                         zorder=5, s=60, marker="*")
 
-        # Colorbars
-        cb1 = fig.colorbar(lc1, ax=axes[0], pad=0.02)
-        cb1.set_label("time step", color=PALETTE["subtext"], fontsize=8)
-        cb1.ax.yaxis.set_tick_params(color=PALETTE["subtext"])
-        plt.setp(cb1.ax.yaxis.get_ticklabels(), color=PALETTE["subtext"])
+    cb = fig.colorbar(lc1, ax=axes[0], pad=0.02)
+    cb.set_label("time step", color=PALETTE["subtext"], fontsize=8)
+    cb.ax.yaxis.set_tick_params(color=PALETTE["subtext"])
+    plt.setp(cb.ax.yaxis.get_ticklabels(), color=PALETTE["subtext"])
 
-    axes[0].set_title("Load Phase Portrait  (θ_l, ω_l)", **_FONT_TITLE)
-    axes[1].set_title("Motor Phase Portrait  (θ_m, ω_m)", **_FONT_TITLE)
-    _label_xy(axes[0], "θ_l  [rad]", "ω_l  [rad/s]")
-    _label_xy(axes[1], "θ_m  [rad]", "ω_m  [rad/s]")
-
+    axes[0].set_title(r"Load Phase Portrait  $(\theta_l,\,\omega_l)$", **_FONT_TITLE)
+    axes[1].set_title(r"Motor Phase Portrait  $(\theta_m,\,\omega_m)$", **_FONT_TITLE)
+    _label_xy(axes[0], r"$\theta_l$  [rad]", r"$\omega_l$  [rad/s]")
+    _label_xy(axes[1], r"$\theta_m$  [rad]", r"$\omega_m$  [rad/s]")
     for ax in axes:
-        ax.legend(fontsize=7, framealpha=0.25,
-                  labelcolor=PALETTE["text"], facecolor=PALETTE["panel"])
+        _legend(ax)
 
-    fig.suptitle("Flexible-Joint Backstepping — Phase Portraits",
+    fig.suptitle(r"Flexible-Joint Drive — Phase Portraits",
                  fontsize=15, fontweight="bold",
                  color=PALETTE["text"], y=1.01)
     _save(fig, filename)
@@ -258,63 +326,59 @@ def plot_phase_portraits(results: list[SimResult],
 def plot_lyapunov(results: list[SimResult],
                   filename: str = "lyapunov.png") -> None:
     """
-    Three-panel figure:
-      Top    – Lyapunov function V(t) on log scale (should be strictly decreasing)
-      Middle – Total mechanical energy E(t)
-      Bottom – dV/dt (numerical) – should be ≤ 0 almost everywhere
+    Three-panel figure: V(t) log-scale, E(t), dV/dt.
+    Backstepping plotted last; each controller gets its own colour.
+    For equilibrium stabilisation V should decay monotonically to zero.
+    For trajectory tracking V decays to a residual set.
     """
+    sorted_r = _sort_results(results)
+
     fig, axes = plt.subplots(3, 1, figsize=(12, 10), sharex=True)
     _apply_dark_style(fig, axes)
     fig.subplots_adjust(hspace=0.45)
 
-    for r in results:
+    for idx, r in enumerate(sorted_r):
         t   = r.t
         V   = r.lyapunov
         E   = r.energy
-        lw  = 1.8
+        pc, _, _ = _result_colors(r, idx)
+        lw  = 2.0 if "backstepping" in r.label.lower() else 1.4
+        alp = 1.0 if "backstepping" in r.label.lower() else 0.75
 
-        # Lyapunov on log scale
         V_safe = np.where(V > 1e-14, V, 1e-14)
-        axes[0].semilogy(t, V_safe, lw=lw, color=PALETTE["accent4"],
+        axes[0].semilogy(t, V_safe, lw=lw, alpha=alp, color=pc,
                          label=r.label)
+        axes[1].plot(t, E, lw=lw, alpha=alp, color=pc,
+                     label=r.label)
 
-        # Energy
-        axes[1].plot(t, E, lw=lw, color=PALETTE["accent3"], label=r.label)
-
-        # Numerical dV/dt – Savitzky-Golay smoothed
         dV_raw = np.gradient(V, t)
-        win = min(51, len(dV_raw) // 10 * 2 + 1)   # odd window ≤ 51
-        win = max(win, 5)
+        win = min(51, max(5, len(dV_raw) // 10 * 2 + 1))
         dV  = savgol_filter(dV_raw, window_length=win, polyorder=3)
-        axes[2].plot(t, dV, lw=1.2, color=PALETTE["error"], label=r.label,
-                     alpha=0.85)
-        axes[2].axhline(0, color=PALETTE["grid"], lw=1.0, linestyle="--")
-        axes[2].fill_between(t, dV, 0,
-                              where=(dV > 0),
-                              color=PALETTE["error"], alpha=0.20,
-                              label="V̇ > 0 (violation)")
+        axes[2].plot(t, dV, lw=max(1.0, lw - 0.4), alpha=alp,
+                     color=pc, label=r.label)
+        axes[2].fill_between(t, dV, 0, where=(dV > 0),
+                             color=pc, alpha=0.15)
 
-    axes[0].set_title("Composite Lyapunov Function  V(t) = ½e₁² + ½e₂² + ½e₃²",
+    axes[2].axhline(0, color=PALETTE["grid"], lw=1.0, linestyle="--")
+
+    axes[0].set_title(r"Composite Lyapunov Function  $V(t) = \frac{1}{2}e_1^2 + \frac{1}{2}e_2^2 + \frac{1}{2}e_3^2$",
                       **_FONT_TITLE)
-    axes[1].set_title("Total Mechanical Energy  E(t)  [J]", **_FONT_TITLE)
-    axes[2].set_title("Lyapunov Rate  dV/dt  (≤ 0 → stable)", **_FONT_TITLE)
-
-    _label_xy(axes[0], "", "V(t)  [log]")
-    _label_xy(axes[1], "", "E(t)  [J]")
-    _label_xy(axes[2], "time [s]", "dV/dt")
-
+    axes[1].set_title(r"Total Mechanical Energy  $E(t)$  [J]", **_FONT_TITLE)
+    axes[2].set_title(r"Lyapunov Rate  $\dot{V}$  ($\leq 0 \Rightarrow$ stable)",  **_FONT_TITLE)
+    _label_xy(axes[0], "", r"$V(t)$  [log]")
+    _label_xy(axes[1], "", r"$E(t)$  [J]")
+    _label_xy(axes[2], r"time [s]", r"$\dot{V}$")
     for ax in axes:
-        ax.legend(fontsize=7, framealpha=0.25,
-                  labelcolor=PALETTE["text"], facecolor=PALETTE["panel"])
+        _legend(ax)
 
-    fig.suptitle("Flexible-Joint Backstepping — Lyapunov & Energy Analysis",
+    fig.suptitle("Flexible-Joint Drive — Lyapunov & Energy Analysis",
                  fontsize=15, fontweight="bold",
                  color=PALETTE["text"], y=1.005)
     _save(fig, filename)
 
 
 # ──────────────────────────────────────────────────────────────────────
-# 5 · Shaft dynamics plots  (new)
+# 4 · Shaft dynamics plots
 # ──────────────────────────────────────────────────────────────────────
 
 def plot_shaft_dynamics(results: list[SimResult],
@@ -322,13 +386,11 @@ def plot_shaft_dynamics(results: list[SimResult],
                         k: float = 50.0,
                         k3: float = 20.0) -> None:
     """
-    Four-panel figure focusing on the internal flexible-shaft dynamics:
-
-      (A) Shaft twist  Δθ = θ_m − θ_l
-      (B) Relative velocity  Δω = ω_m − ω_l
-      (C) Elastic potential energy  E_s = ½k·Δθ² + ¼k₃·Δθ⁴
-      (D) Internal phase portrait  (Δθ, Δω)  – nonlinear oscillation
+    Four-panel figure: Δθ, Δω, elastic energy, internal phase portrait.
+    Backstepping plotted last; distinct colours per controller.
     """
+    sorted_r = _sort_results(results)
+
     fig = plt.figure(figsize=(14, 12))
     gs  = gridspec.GridSpec(2, 2, hspace=0.50, wspace=0.35, figure=fig)
     ax_twist   = fig.add_subplot(gs[0, 0])
@@ -338,65 +400,56 @@ def plot_shaft_dynamics(results: list[SimResult],
     axes       = [ax_twist, ax_nu, ax_elastic, ax_phase]
     _apply_dark_style(fig, axes)
 
-    cmaps = ["plasma", "viridis", "cool", "spring"]
-
-    for idx, r in enumerate(results):
+    for idx, r in enumerate(sorted_r):
         t      = r.t
-        delta  = r.x[:, 2] - r.x[:, 0]         # Δθ
-        nu     = r.x[:, 3] - r.x[:, 1]          # Δω
+        delta  = r.x[:, 2] - r.x[:, 0]
+        nu     = r.x[:, 3] - r.x[:, 1]
         E_s    = 0.5 * k * delta**2 + 0.25 * k3 * delta**4
-        lw     = 1.6
-        cm     = cmaps[idx % len(cmaps)]
+        pc, _, _ = _result_colors(r, idx)
+        cm     = _result_cmap(r, idx)
+        lw     = 2.0 if "backstepping" in r.label.lower() else 1.4
+        alp    = 1.0 if "backstepping" in r.label.lower() else 0.75
 
-        # (A) Shaft twist
-        ax_twist.plot(t, delta, color=PALETTE["accent3"], lw=lw,
-                      label=r.label)
+        ax_twist.plot(t, delta, color=pc, lw=lw, alpha=alp, label=r.label)
         ax_twist.axhline(0, color=PALETTE["grid"], lw=0.8, linestyle="--")
 
-        # (B) Relative velocity
-        ax_nu.plot(t, nu, color=PALETTE["accent1"], lw=lw,
-                   label=r.label)
+        ax_nu.plot(t, nu, color=pc, lw=lw, alpha=alp, label=r.label)
         ax_nu.axhline(0, color=PALETTE["grid"], lw=0.8, linestyle="--")
 
-        # (C) Elastic energy  — log scale when range spans orders of magnitude
         E_safe = np.where(E_s > 1e-12, E_s, 1e-12)
         if E_safe.max() / E_safe[E_safe > 1e-12].min() > 1e3:
-            ax_elastic.semilogy(t, E_safe, color=PALETTE["accent4"],
-                                lw=lw, label=r.label)
+            ax_elastic.semilogy(t, E_safe, color=pc, lw=lw, alpha=alp,
+                                label=r.label)
         else:
-            ax_elastic.plot(t, E_s, color=PALETTE["accent4"],
-                            lw=lw, label=r.label)
+            ax_elastic.plot(t, E_s, color=pc, lw=lw, alpha=alp,
+                            label=r.label)
 
-        # (D) Internal phase portrait  Δθ vs Δω  (time-coloured)
-        lc = _colored_line(ax_phase, delta, nu, cmap=cm, lw=1.5)
+        _colored_line(ax_phase, delta, nu, cmap=cm, lw=lw)
         ax_phase.scatter(delta[0],  nu[0],  color="white",
-                         zorder=5, s=40, marker="o", label=f"IC  {r.label}")
-        ax_phase.scatter(delta[-1], nu[-1], color=PALETTE["accent2"],
+                         zorder=5, s=40, marker="o", label=fr"IC  [{r.label}]")
+        ax_phase.scatter(delta[-1], nu[-1], color=pc,
                          zorder=5, s=60, marker="*")
 
-    ax_twist.set_title("Shaft Twist  Δθ = θ_m − θ_l  [rad]",   **_FONT_TITLE)
-    ax_nu.set_title("Relative Velocity  Δω = ω_m − ω_l  [rad/s]", **_FONT_TITLE)
-    ax_elastic.set_title(
-        "Elastic Potential  E_s = ½k·Δθ² + ¼k₃·Δθ⁴  [J]",     **_FONT_TITLE)
-    ax_phase.set_title("Internal Phase Portrait  (Δθ, Δω)",      **_FONT_TITLE)
-
-    _label_xy(ax_twist,   "time [s]", "Δθ [rad]")
-    _label_xy(ax_nu,      "time [s]", "Δω [rad/s]")
-    _label_xy(ax_elastic, "time [s]", "E_s [J]")
-    _label_xy(ax_phase,   "Δθ [rad]", "Δω [rad/s]")
-
+    ax_twist.set_title(r"Shaft Twist  $\Delta\theta = \theta_m - \theta_l$  [rad]",   **_FONT_TITLE)
+    ax_nu.set_title(r"Relative Velocity  $\Delta\omega = \omega_m - \omega_l$  [rad/s]", **_FONT_TITLE)
+    ax_elastic.set_title(r"Elastic Potential  $E_s = \frac{1}{2}k\Delta\theta^2 + \frac{1}{4}k_3\Delta\theta^4$  [J]",
+                         **_FONT_TITLE)
+    ax_phase.set_title(r"Internal Phase Portrait  $(\Delta\theta,\,\Delta\omega)$", **_FONT_TITLE)
+    _label_xy(ax_twist,   r"time [s]", r"$\Delta\theta$ [rad]")
+    _label_xy(ax_nu,      r"time [s]", r"$\Delta\omega$ [rad/s]")
+    _label_xy(ax_elastic, r"time [s]", r"$E_s$ [J]")
+    _label_xy(ax_phase,   r"$\Delta\theta$ [rad]", r"$\Delta\omega$ [rad/s]")
     for ax in axes:
-        ax.legend(fontsize=7, framealpha=0.25,
-                  labelcolor=PALETTE["text"], facecolor=PALETTE["panel"])
+        _legend(ax)
 
-    fig.suptitle("Flexible-Joint Backstepping — Shaft Internal Dynamics",
+    fig.suptitle(r"Flexible-Joint Drive — Shaft Internal Dynamics",
                  fontsize=15, fontweight="bold",
                  color=PALETTE["text"], y=1.005)
     _save(fig, filename)
 
 
 # ──────────────────────────────────────────────────────────────────────
-# 6 · Updated convenience wrapper
+# 5 · Convenience wrapper
 # ──────────────────────────────────────────────────────────────────────
 
 def generate_all_plots(results: list[SimResult],
@@ -414,29 +467,44 @@ def generate_all_plots(results: list[SimResult],
 
 
 # ──────────────────────────────────────────────────────────────────────
-# 7 · Animation  (delegates to animation.py)
+# 6 · Animation  (delegates to animation.py)
 # ──────────────────────────────────────────────────────────────────────
 
 def create_animation(results: list[SimResult],
                      filename: str = "animation.gif",
                      save_gif: bool = False) -> None:
     """
-    Launch the pygame-based interactive animation.
+    Launch the pygame-based interactive animation for each SimResult.
 
-    Uses the first SimResult in `results`.  If save_gif is True (or
-    filename ends in .gif) the rendered frames are written to
-    animations/<filename> via Pillow.
-
-    Delegates all rendering to animation.py so this module stays
-    matplotlib-only for static plots.
+    When save_gif=True:
+      • Each result produces its own GIF stored in animations/.
+      • The filename stem is suffixed with a sanitised version of the
+        result label so files don't overwrite each other.
+      • GIFs are rendered via the offline path (exact playback speed,
+        full resolution, Floyd-Steinberg dithering).
+    The interactive window then opens for the first result.
     """
     from animation import create_animation as _anim_run
 
-    result   = results[0]
-    gif_path = ANIMATIONS_DIR / filename if save_gif else None
-    print(f"  Launching pygame animation (save_gif={save_gif}) …")
-    _anim_run(result,
-              save_gif=save_gif,
-              gif_path=gif_path,
-              gif_fps=20,
-              gif_max_frames=500)
+    stem    = Path(filename).stem
+    suffix  = Path(filename).suffix or ".gif"
+
+    def _safe(label: str) -> str:
+        """Turn a result label into a safe filename fragment."""
+        return label.lower().replace(" ", "_").replace("/", "-")[:32]
+
+    # ── Save a GIF for every result ───────────────────────────────────
+    if save_gif:
+        for r in results:
+            gif_name = f"{stem}_{_safe(r.label)}{suffix}"
+            gif_path = ANIMATIONS_DIR / gif_name
+            print(f"  Rendering GIF for [{r.label}] → {gif_name} …")
+            _anim_run(r,
+                      save_gif=True,
+                      gif_path=gif_path,
+                      gif_fps=20)
+
+    # ── Interactive window for the first result ───────────────────────
+    first = results[0]
+    print(f"  Launching interactive animation for [{first.label}] …")
+    _anim_run(first, save_gif=False, gif_fps=20)
