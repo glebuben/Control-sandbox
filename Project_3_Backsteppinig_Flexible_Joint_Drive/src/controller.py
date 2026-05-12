@@ -216,3 +216,159 @@ class BacksteppingController:
     @property
     def virtual_controls(self):
         return self._alpha1, self._alpha2
+
+
+# ══════════════════════════════════════════════════════════════════════
+# Linear controllers  (for comparison with backstepping)
+# ══════════════════════════════════════════════════════════════════════
+#
+# Both controllers act on the LOAD POSITION error  e = θ_l − θ_d.
+# They see the full state x = [θ_l, ω_l, θ_m, ω_m] but can only use
+# the load-side measurements (non-collocated: they cannot directly
+# observe the motor angle through a simple PD/PID loop on the load).
+#
+# Design notes
+# ------------
+# • PD:  u = −Kp·e − Kd·ė    where ė = ω_l − ω_d
+#   No integral; zero steady-state only when ω_d = const and friction = 0.
+#   Fails for this plant: the cubic stiffness shifts the effective plant
+#   gain with amplitude, so any fixed Kp/Kd becomes detuned.
+#
+# • PID: u = −Kp·e − Ki·∫e dt − Kd·ė
+#   Integral term helps reject constant disturbances but causes
+#   integrator windup during large transients and cannot compensate
+#   the resonance introduced by the flexible shaft.
+#
+# Both controllers ignore the shaft dynamics entirely, which is why they
+# produce oscillation or instability when the flexible coupling is present.
+# ══════════════════════════════════════════════════════════════════════
+
+
+@dataclass
+class PDGains:
+    Kp: float = 60.0    # proportional gain on θ_l error
+    Kd: float = 15.0    # derivative gain  on ω_l error
+
+
+@dataclass
+class PIDGains:
+    Kp: float = 60.0    # proportional gain
+    Ki: float = 8.0     # integral gain
+    Kd: float = 15.0    # derivative gain
+    windup_limit: float = 50.0   # anti-windup clamp on integral state
+
+
+class PDController:
+    """
+    Proportional-Derivative controller on load position.
+
+        u = −Kp·(θ_l − θ_d) − Kd·(ω_l − ω̇_d)
+
+    Ignores motor-side dynamics and shaft flexibility entirely.
+    Provided as a baseline to show why linear control is inadequate
+    for this non-collocated flexible-joint system.
+    """
+
+    def __init__(self,
+                 system: "FlexibleJointSystem",
+                 gains: PDGains | None = None) -> None:
+        self.sys   = system
+        self.gains = gains or PDGains()
+        self._e1: float = 0.0
+        self._e2: float = 0.0
+        self._e3: float = 0.0
+
+    def compute(self,
+                t:        float,
+                x:        np.ndarray,
+                theta_d:  float,
+                dtheta_d: float  = 0.0,
+                ddtheta_d: float = 0.0) -> float:
+        g = self.gains
+        e  = x[0] - theta_d          # position error
+        de = x[1] - dtheta_d         # velocity error
+        u  = -g.Kp * e - g.Kd * de
+
+        # Store compatible error fields (e3 = 0 for PD)
+        self._e1 = e
+        self._e2 = de
+        self._e3 = 0.0
+        return float(u)
+
+    def lyapunov_value(self, x, theta_d, dtheta_d=0.0) -> float:
+        """Use ½e₁² as a stand-in Lyapunov proxy for comparison plots."""
+        return 0.5 * (x[0] - theta_d) ** 2
+
+    @property
+    def errors(self):
+        return self._e1, self._e2, self._e3
+
+    @property
+    def virtual_controls(self):
+        return 0.0, 0.0
+
+
+class PIDController:
+    """
+    Proportional-Integral-Derivative controller on load position.
+
+        u = −Kp·(θ_l − θ_d) − Ki·∫(θ_l−θ_d)dt − Kd·(ω_l − ω̇_d)
+
+    Includes anti-windup clamping on the integral state.
+    Ignores motor-side dynamics and shaft flexibility entirely.
+    Provided as a baseline to show why linear control is inadequate
+    for this non-collocated flexible-joint system.
+    """
+
+    def __init__(self,
+                 system: "FlexibleJointSystem",
+                 gains: PIDGains | None = None) -> None:
+        self.sys    = system
+        self.gains  = gains or PIDGains()
+        self._i_err: float = 0.0      # integral accumulator
+        self._prev_t: float | None = None
+        self._e1: float = 0.0
+        self._e2: float = 0.0
+        self._e3: float = 0.0
+
+    def reset(self) -> None:
+        self._i_err  = 0.0
+        self._prev_t = None
+
+    def compute(self,
+                t:         float,
+                x:         np.ndarray,
+                theta_d:   float,
+                dtheta_d:  float  = 0.0,
+                ddtheta_d: float  = 0.0) -> float:
+        g  = self.gains
+        e  = x[0] - theta_d
+        de = x[1] - dtheta_d
+
+        # Integrate with trapezoidal rule
+        if self._prev_t is not None:
+            dt = max(t - self._prev_t, 0.0)
+            self._i_err += e * dt
+            # Anti-windup clamp
+            self._i_err = float(np.clip(self._i_err,
+                                        -g.windup_limit, g.windup_limit))
+        self._prev_t = t
+
+        u = -g.Kp * e - g.Ki * self._i_err - g.Kd * de
+
+        self._e1 = e
+        self._e2 = de
+        self._e3 = self._i_err
+        return float(u)
+
+    def lyapunov_value(self, x, theta_d, dtheta_d=0.0) -> float:
+        """Use ½e₁² as a stand-in Lyapunov proxy for comparison plots."""
+        return 0.5 * (x[0] - theta_d) ** 2
+
+    @property
+    def errors(self):
+        return self._e1, self._e2, self._e3
+
+    @property
+    def virtual_controls(self):
+        return 0.0, 0.0

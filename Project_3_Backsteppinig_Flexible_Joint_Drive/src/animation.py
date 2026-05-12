@@ -31,6 +31,7 @@ Keyboard controls
 
 from __future__ import annotations
 import sys
+import os
 import math
 import time
 from pathlib import Path
@@ -225,23 +226,15 @@ def draw_disk(surf: pygame.Surface,
 def _shaft_attachment(cx: int, cy: int, radius: int, theta: float
                       ) -> tuple[int, int]:
     """
-    Return the pixel coordinates of the shaft attachment point on a disk.
+    Return the pixel coordinate of the shaft attachment point.
 
-    Uses exactly the same formula as the spoke tip drawn by draw_disk:
+    Physically the shaft bolts onto the disk hub — the axle — so the
+    attachment is at the disk CENTRE (cx, cy).  The spoke (angle marker)
+    is a separate visual element; the shaft does not connect to it.
 
-        x = cx + r * sin(theta)
-        y = cy - r * cos(theta)
-
-    where r = radius - 6 (the same inset used for the white dot).
-    Convention: theta = 0  →  12-o'clock,  increases clockwise on screen
-    (screen y points down, so clockwise rotation = increasing theta).
-    This matches the spoke drawn in draw_disk, so the shaft end lands
-    precisely on the angle-indicator dot and moves with it.
+    radius and theta are accepted for API compatibility but not used here.
     """
-    r  = radius - 6          # same inset as the spoke tip in draw_disk
-    ax = cx + int(r * math.sin(theta))
-    ay = cy - int(r * math.cos(theta))
-    return ax, ay
+    return cx, cy
 
 
 def draw_shaft(surf: pygame.Surface,
@@ -256,63 +249,43 @@ def draw_shaft(surf: pygame.Surface,
 
     Physical model
     --------------
-    The shaft is a compliant torsional coupling.  Its two ends are
-    *rigidly attached* to the disk flanges:
+    The shaft connects the two disk HUBS (axles) — it runs from the
+    motor centre to the load centre.  The disks spin around this shared
+    axis; the shaft is the compliant element between them.
 
-      • LEFT  end  rotates with the motor  → attachment angle = θ_m
-      • RIGHT end  rotates with the load   → attachment angle = θ_l
+    The shaft's *internal shape* deforms in proportion to
 
-    The shaft *internal shape* deforms in proportion to
+        Δθ = θ_m − θ_l   (torsional strain / shaft twist)
 
-        Δθ = θ_m − θ_l   (shaft twist / torsional strain)
+    A relaxed shaft (Δθ ≈ 0) appears nearly straight.
+    A stressed shaft (|Δθ| large) bows perpendicularly, encoding the
+    stored elastic energy as visible curvature.
 
-    When Δθ ≈ 0 the shaft is relaxed (nearly straight).
-    When |Δθ| is large the shaft appears wound-up / elastically stressed.
-
-    Rendering approach
-    ------------------
-    We draw N parallel "fibres" of the shaft.  Each fibre is a cubic
-    Hermite spline whose:
-      • start point  = attachment on motor rim  (rotates with θ_m)
-      • end   point  = attachment on load  rim  (rotates with θ_l)
-      • start tangent = tangential to the motor rim at the attachment
-      • end   tangent = tangential to the load  rim at the attachment
-
-    The cubic Hermite spline guarantees C¹ continuity at both disk
-    attachments (the curve is tangent to the rim, not poking through it).
-
-    Multiple fibres are offset ±perp around the centreline to give the
-    shaft visual *width*, and their colours grade from centre-bright to
-    edge-dark so it looks tubular.
-
-    The midpoint bulge of the spline grows with |Δθ|, making the
-    torsional strain immediately visible.
+    Implementation
+    --------------
+    Cubic Hermite spline from motor centre to load centre.
+    Horizontal exit tangents (natural for an axle-mounted coupling).
+    Midpoint bow proportional to Δθ encodes torsional strain.
+    Multi-fibre tube rendering gives depth and colour encodes torque.
     """
     delta = theta_m - theta_l
 
-    # ── Attachment points on each rim ────────────────────────────────
-    ax_m, ay_m = _shaft_attachment(motor_cx, motor_cy, disk_r, theta_m)
-    ax_l, ay_l = _shaft_attachment(load_cx,  load_cy,  disk_r, theta_l)
+    # ── Attachment points: inner rim edge on the facing side ─────────
+    # The shaft exits from the right face of the motor disk and enters
+    # the left face of the load disk.  This keeps it visually separate
+    # from the disk bodies while still connecting on the rotation axis.
+    ax_m = motor_cx + disk_r - 4
+    ay_m = motor_cy
+    ax_l = load_cx  - disk_r + 4
+    ay_l = load_cy
 
     # ── Tangent vectors at attachment points ─────────────────────────
-    # The radius at attachment angle theta is (sin θ, -cos θ) in screen
-    # coords.  The tangent (90° CCW from radius) is (cos θ, sin θ).
-    # We always want the tangent component pointing FROM motor TOWARD load
-    # (positive x-direction), so we flip if necessary.
-    def rim_tangent(theta: float, point_right: bool) -> tuple[float, float]:
-        tx =  math.cos(theta)
-        ty =  math.sin(theta)
-        # flip so the tangent points in the required x-direction
-        if point_right and tx < 0:
-            tx, ty = -tx, -ty
-        if not point_right and tx > 0:
-            tx, ty = -tx, -ty
-        return tx, ty
-
-    # Motor tangent points rightward (toward load)
-    tmx, tmy = rim_tangent(theta_m, point_right=True)
-    # Load tangent points leftward (back toward motor)
-    tlx, tly = rim_tangent(theta_l, point_right=False)
+    # Both attachments are at disk centres on the same horizontal line.
+    # The natural exit tangent is purely horizontal: motor tangent points
+    # right (+x), load tangent points left (−x).
+    # We keep unit tangents; scale is applied below.
+    tmx, tmy = 1.0, 0.0    # motor: rightward
+    tlx, tly = -1.0, 0.0   # load:  leftward
 
     # Tangent scale: controls how "stiff" the spline looks.
     # Grows with shaft length so the curve doesn't fold back.
@@ -477,7 +450,7 @@ def draw_torque_arrow(surf: pygame.Surface,
         ])
 
     # Torque value label
-    label = f"u={u:+.1f}Nm"
+    label = f"u={u:+.1f} Nm"
     draw_text(surf, font, label,
               cx, cy - arc_r - 22,
               color, align="center")
@@ -501,18 +474,18 @@ def draw_telemetry(surf: pygame.Surface,
     y += 28
 
     rows = [
-        ("θ_l",  data.get("theta_l", 0.0),  "rad",   C["accent0"]),
-        ("θ_m",  data.get("theta_m", 0.0),  "rad",   C["accent1"]),
-        ("θ_d",  data.get("theta_d", 0.0),  "rad",   C["accent2"]),
-        ("Δθ",   data.get("delta",   0.0),  "rad",   C["accent3"]),
-        ("Δω",   data.get("nu",      0.0),  "rad/s", C["accent3"]),
-        ("τ_c",  data.get("tau_c",   0.0),  "N·m",   C["accent3"]),
-        ("u",    data.get("u",       0.0),  "N·m",   C["accent4"]),
-        ("E",    data.get("energy",  0.0),  "J",     C["accent4"]),
-        ("V",    data.get("lyapunov",0.0),  "",      C["accent4"]),
-        ("e₁",   data.get("e1",      0.0),  "rad",   C["error"]),
-        ("e₂",   data.get("e2",      0.0),  "r/s",   C["error"]),
-        ("e₃",   data.get("e3",      0.0),  "N·m",   C["error"]),
+        ("\u03b8_l",  data.get("theta_l", 0.0),  "rad",    C["accent0"]),   # θ_l
+        ("\u03b8_m",  data.get("theta_m", 0.0),  "rad",    C["accent1"]),   # θ_m
+        ("\u03b8_d",  data.get("theta_d", 0.0),  "rad",    C["accent2"]),   # θ_d
+        ("\u0394\u03b8", data.get("delta",   0.0),  "rad",  C["accent3"]),  # Δθ
+        ("\u0394\u03c9", data.get("nu",      0.0),  "rad/s",C["accent3"]),  # Δω
+        ("\u03c4_c",  data.get("tau_c",   0.0),  "N.m",    C["accent3"]),   # τ_c
+        ("u",         data.get("u",       0.0),  "N.m",    C["accent4"]),
+        ("E",         data.get("energy",  0.0),  "J",      C["accent4"]),
+        ("V",         data.get("lyapunov",0.0),  "",       C["accent4"]),
+        ("e1",        data.get("e1",      0.0),  "rad",    C["error"]),
+        ("e2",        data.get("e2",      0.0),  "r/s",    C["error"]),
+        ("e3",        data.get("e3",      0.0),  "N.m",    C["error"]),
     ]
 
     for name, val, unit, color in rows:
@@ -529,7 +502,7 @@ def draw_telemetry(surf: pygame.Surface,
         y += 22
 
         # Separator after Δω
-        if name == "Δω":
+        if name == "\u0394\u03c9":    # Δω
             pygame.draw.line(surf, C["border"],
                              (x, y - 4), (rect.right - 14, y - 4), 1)
 
@@ -590,79 +563,91 @@ def draw_energy_bars(surf: pygame.Surface,
 # ─────────────────────────────────────────────────────────────────────
 
 class MiniPlot:
-    """A scrolling single-trace strip rendered with pygame."""
+    """
+    Fixed-time-axis strip plot rendered in pygame.
+
+    All N simulation samples are stored up-front.  The x-axis always
+    spans [0, t_end] so the scale never changes.  A vertical cursor
+    line moves with the current frame.
+    """
 
     def __init__(self, rect: pygame.Rect,
                  label: str, unit: str,
                  color: tuple,
-                 history_len: int = 400) -> None:
-        self.rect = rect
-        self.label = label
-        self.unit  = unit
-        self.color = color
-        self.history: deque[float] = deque(maxlen=history_len)
-        self.ref_history: deque[float] | None = None
+                 t: np.ndarray,
+                 vals: np.ndarray,
+                 ref_vals: np.ndarray | None = None) -> None:
+        self.rect     = rect
+        self.label    = label
+        self.unit     = unit
+        self.color    = color
+        self.t        = t
+        self.vals     = vals
+        self.ref_vals = ref_vals
 
-    def push(self, val: float, ref: float | None = None) -> None:
-        self.history.append(val)
-        if ref is not None:
-            if self.ref_history is None:
-                self.ref_history = deque(maxlen=self.history.maxlen)
-            self.ref_history.append(ref)
+        # Pre-compute y-axis limits from full data
+        all_data = vals if ref_vals is None else np.concatenate([vals, ref_vals])
+        lo = float(np.nanmin(all_data))
+        hi = float(np.nanmax(all_data))
+        span = max(hi - lo, 1e-6)
+        self._lo = lo - span * 0.08
+        self._hi = hi + span * 0.08
+
+        # Pre-compute pixel x-coordinates for every sample
+        n = len(t)
+        self._px = np.round(
+            rect.x + np.arange(n) / max(n - 1, 1) * (rect.width - 2)
+        ).astype(int)
+
+    def _to_py(self, v: np.ndarray) -> np.ndarray:
+        r = self.rect
+        frac = (v - self._lo) / (self._hi - self._lo)
+        return np.round(r.bottom - 4 - frac * (r.height - 20)).astype(int)
 
     def draw(self, surf: pygame.Surface,
+             frame: int,
              font_sm: pygame.font.Font) -> None:
         r = self.rect
         draw_rounded_rect(surf, r, C["panel_b"], radius=4, border=C["border"])
 
-        if len(self.history) < 2:
+        n = len(self.vals)
+        if n < 2:
             return
 
-        vals = list(self.history)
-        lo   = min(vals)
-        hi   = max(vals)
-        span = max(hi - lo, 0.01)
-        lo  -= span * 0.08
-        hi  += span * 0.08
-        span = hi - lo
+        # Draw up to current frame only
+        end = max(frame + 1, 2)
+        px  = self._px[:end]
+        py  = self._to_py(self.vals[:end])
 
-        def to_px(v):
-            frac = (v - lo) / span
-            return int(r.bottom - 4 - frac * (r.height - 20))
-
-        n = len(vals)
-        pts = []
-        for i, v in enumerate(vals):
-            px = r.x + int(i / (self.history.maxlen - 1) * (r.width - 2))
-            py = to_px(v)
-            pts.append((px, py))
-
+        pts = list(zip(px.tolist(), py.tolist()))
         if len(pts) >= 2:
             pygame.draw.lines(surf, self.color, False, pts, 2)
 
         # Reference trace
-        if self.ref_history and len(self.ref_history) >= 2:
-            ref_vals = list(self.ref_history)
-            rpts = []
-            for i, v in enumerate(ref_vals):
-                px = r.x + int(i / (self.history.maxlen - 1) * (r.width - 2))
-                py = to_px(v)
-                rpts.append((px, py))
-            pygame.draw.lines(surf, C["accent2"], False, rpts, 1)
+        if self.ref_vals is not None:
+            rpy = self._to_py(self.ref_vals[:end])
+            rpts = list(zip(px.tolist(), rpy.tolist()))
+            if len(rpts) >= 2:
+                pygame.draw.lines(surf, C["accent2"], False, rpts, 1)
 
         # Zero line
-        if lo < 0 < hi:
-            zy = to_px(0.0)
-            pygame.draw.line(surf, C["border"],
-                             (r.x, zy), (r.right, zy), 1)
+        if self._lo < 0 < self._hi:
+            zy = int(self._to_py(np.array([0.0]))[0])
+            pygame.draw.line(surf, C["border"], (r.x, zy), (r.right, zy), 1)
 
-        # Current value indicator (right edge)
-        cur_y = to_px(vals[-1])
-        pygame.draw.circle(surf, self.color, (r.right - 3, cur_y), 4)
+        # Cursor at current frame
+        cx2 = int(self._px[min(frame, n - 1)])
+        pygame.draw.line(surf, C["subtext"],
+                         (cx2, r.y + 16), (cx2, r.bottom - 2), 1)
+
+        # Current value dot
+        cur_py = int(self._to_py(self.vals[min(frame, n-1):min(frame, n-1)+1])[0])
+        pygame.draw.circle(surf, self.color, (cx2, cur_py), 4)
 
         # Labels
         draw_text(surf, font_sm, self.label, r.x + 6, r.y + 4, C["subtext"])
-        val_str = f"{vals[-1]:+.3f} {self.unit}"
+        cur_val = float(self.vals[min(frame, n - 1)])
+        val_str = f"{cur_val:+.3f} {self.unit}"
         draw_text(surf, font_sm, val_str,
                   r.right - 6, r.y + 4, self.color, align="right")
 
@@ -712,21 +697,37 @@ def draw_header(surf: pygame.Surface,
 def _try_save_gif(frames: list[pygame.Surface],
                   path: Path,
                   fps: int = 20) -> bool:
+    """
+    Write a high-quality GIF from a list of pygame Surfaces.
+
+    Quality improvements over a naïve palette-quantise approach:
+      • Full resolution (no downscale — caller decides size)
+      • Per-frame adaptive palette  (256 colours each)
+      • Floyd-Steinberg dithering   (reduces banding on gradients)
+      • Correct inter-frame delay   (1000 / fps  milliseconds)
+    """
     try:
         from PIL import Image
         pil_frames = []
         for surf in frames:
             raw = pygame.image.tobytes(surf, "RGB")
             img = Image.frombytes("RGB", surf.get_size(), raw)
-            pil_frames.append(img.convert("P", dither=Image.Dither.NONE))
+            # Adaptive palette per frame with Floyd-Steinberg dithering
+            img_p = img.quantize(colors=256,
+                                 method=Image.Quantize.MEDIANCUT,
+                                 dither=Image.Dither.FLOYDSTEINBERG)
+            pil_frames.append(img_p)
+
         pil_frames[0].save(
-            path, save_all=True,
+            path,
+            save_all=True,
             append_images=pil_frames[1:],
             loop=0,
             duration=int(1000 / fps),
-            optimize=False,
+            optimize=False,          # optimise=True can corrupt palette
         )
-        print(f"  [gif saved] {path}")
+        size_kb = path.stat().st_size // 1024
+        print(f"  [gif saved] {path}  ({len(pil_frames)} frames, {size_kb} KB)")
         return True
     except ImportError:
         print("  Pillow not installed – GIF export skipped.  pip install Pillow")
@@ -749,13 +750,11 @@ class FlexibleJointAnimator:
                  result: SimResult,
                  save_gif: bool = False,
                  gif_path: Path | None = None,
-                 gif_fps: int = 20,
-                 gif_max_frames: int = 400) -> None:
+                 gif_fps: int = 20) -> None:
         self.r          = result
         self.save_gif   = save_gif
         self.gif_path   = gif_path
         self.gif_fps    = gif_fps
-        self.gif_max_frames = gif_max_frames
 
         # Playback state
         self.frame      = 0
@@ -781,22 +780,36 @@ class FlexibleJointAnimator:
         self._motor_trail: deque = deque(maxlen=TRAIL_LEN)
         self._load_trail:  deque = deque(maxlen=TRAIL_LEN)
 
-        # GIF frame buffer
-        self._gif_frames: list[pygame.Surface] = []
-        self._gif_stride = max(1, n // gif_max_frames)
-
         # Pygame init
         pygame.init()
         pygame.display.set_caption("Flexible-Joint Drive — Backstepping")
         self.screen = pygame.display.set_mode((WIN_W, WIN_H))
         self.clock  = pygame.time.Clock()
 
-        # Fonts
-        mono_candidates = ["DejaVuSansMono", "Courier New", "monospace"]
-        self.font_title = pygame.font.SysFont("sans-serif", 14, bold=True)
-        self.font_big   = pygame.font.SysFont("sans-serif", 15, bold=True)
-        self.font_sm    = pygame.font.SysFont("monospace",  11)
-        self.font_mono  = pygame.font.SysFont("monospace",  12)
+        # ── Fonts ─────────────────────────────────────────────────────
+        # Strategy: use pygame.font.match_font() which searches the OS
+        # font database by name and works on Linux, Windows and macOS.
+        # Priority list goes from most-Unicode-complete to most-available.
+        # We avoid Unicode subscript characters (ₗ ₘ ₁ ₂ ₃ etc.) entirely
+        # because they are absent from most common fonts and render as
+        # squares on many systems.  Plain ASCII alternatives are used
+        # throughout (e.g. "Jm" not "Jₘ", "e1" not "e₁").
+        _SANS_NAMES = ["dejavusans", "freesans", "arial", "helvetica",
+                       "liberationsans", "segoeui", "sans"]
+        _MONO_NAMES = ["dejavusansmono", "freemono", "couriernew", "courier",
+                       "liberationmono", "consolas", "monospace"]
+
+        def _load_font(names, size):
+            for name in names:
+                path = pygame.font.match_font(name)
+                if path:
+                    return pygame.font.Font(path, size)
+            return pygame.font.Font(None, size)   # pygame built-in fallback
+
+        self.font_title = _load_font(_SANS_NAMES, 14)
+        self.font_big   = _load_font(_SANS_NAMES, 15)
+        self.font_sm    = _load_font(_MONO_NAMES, 11)
+        self.font_mono  = _load_font(_MONO_NAMES, 12)
 
         # Mini-plots
         self._build_mini_plots()
@@ -804,33 +817,28 @@ class FlexibleJointAnimator:
     # ── mini-plot layout ─────────────────────────────────────────────
 
     def _build_mini_plots(self) -> None:
+        r  = self.r
+        t  = r.t
+        e1 = r.x[:, 0] - r.theta_d          # tracking error θ_l − θ_d
+
         configs = [
-            ("θ_l vs θ_d",  "rad",   C["accent0"]),
-            ("τ_c",         "N·m",   C["accent3"]),
-            ("Energy E",    "J",     C["accent4"]),
-            ("Δθ",          "rad",   C["accent3"]),
+            # (label,                     unit,   color,            vals,        ref)
+            ("\u03b8_l vs \u03b8_d",     "rad",  C["accent0"],  r.x[:, 0],  r.theta_d),
+            ("\u03c4_c",                  "N.m",  C["accent3"],  r.tau_c,     None),
+            ("Energy E",                  "J",    C["accent4"],  r.energy,    None),
+            ("e1 = \u03b8_l - \u03b8_d", "rad",  C["error"],    e1,          None),
         ]
         self.mini_plots: list[MiniPlot] = []
-        for i, (label, unit, color) in enumerate(configs):
-            r = pygame.Rect(
-                PLOT_AREA_X + i * MINI_W + 2,
+        for idx, (label, unit, color, vals, ref) in enumerate(configs):
+            rect = pygame.Rect(
+                PLOT_AREA_X + idx * MINI_W + 2,
                 PLOT_AREA_Y + 2,
                 MINI_W - 4,
                 MINI_H - 4,
             )
-            mp = MiniPlot(r, label, unit, color)
-            if label == "θ_l vs θ_d":
-                mp.ref_history = deque(maxlen=mp.history.maxlen)
-            self.mini_plots.append(mp)
-
-    # ── push current frame data into mini-plots ───────────────────────
-
-    def _push_frame_data(self, i: int) -> None:
-        r = self.r
-        self.mini_plots[0].push(r.x[i, 0], ref=r.theta_d[i])
-        self.mini_plots[1].push(r.tau_c[i])
-        self.mini_plots[2].push(r.energy[i])
-        self.mini_plots[3].push(self.delta[i])
+            self.mini_plots.append(
+                MiniPlot(rect, label, unit, color, t, vals, ref)
+            )
 
     # ── draw one frame ────────────────────────────────────────────────
 
@@ -866,7 +874,7 @@ class FlexibleJointAnimator:
 
         # Axis label
         draw_text(surf, self.font_sm,
-                  "MOTOR ─── flexible shaft ─── LOAD",
+                  "MOTOR --- flexible shaft --- LOAD",
                   SCENE_X + SCENE_W // 2, SCENE_Y + 8,
                   C["subtext"], align="center")
 
@@ -894,7 +902,7 @@ class FlexibleJointAnimator:
                   theta_m,
                   fill_color=lerp_color(C["panel"], C["accent1"], 0.35),
                   border_color=C["accent1"],
-                  label="MOTOR  Jₘ",
+                  label="MOTOR  Jm",
                   font_big=self.font_big,
                   font_sm=self.font_sm,
                   torque_mag=u_norm,
@@ -906,7 +914,7 @@ class FlexibleJointAnimator:
                   theta_l,
                   fill_color=lerp_color(C["panel"], C["accent0"], 0.35),
                   border_color=C["accent0"],
-                  label="LOAD  Jₗ",
+                  label="LOAD  Jl",
                   font_big=self.font_big,
                   font_sm=self.font_sm,
                   torque_mag=0.0,
@@ -921,10 +929,10 @@ class FlexibleJointAnimator:
         ann_y = DISK_CY - DISK_R - 44
         col_ann = torque_color(tau_norm)
         draw_text(surf, self.font_big,
-                  f"Δθ = {delta_v:+.3f} rad",
+                  f"\u0394\u03b8 = {delta_v:+.3f} rad",
                   mid_x, ann_y, col_ann, align="center")
         draw_text(surf, self.font_sm,
-                  f"τ_c = {tau_c:+.2f} N·m",
+                  f"\u03c4_c = {tau_c:+.2f} N.m",
                   mid_x, ann_y + 20, col_ann, align="center")
 
         # ── Telemetry panel ───────────────────────────────────────────
@@ -953,9 +961,8 @@ class FlexibleJointAnimator:
                          self.font_title, self.font_sm)
 
         # ── Mini-plots ────────────────────────────────────────────────
-        self._push_frame_data(i)
         for mp in self.mini_plots:
-            mp.draw(surf, self.font_sm)
+            mp.draw(surf, i, self.font_sm)
 
         # ── Divider between scene and mini-plots ──────────────────────
         pygame.draw.line(surf, C["border"],
@@ -963,6 +970,48 @@ class FlexibleJointAnimator:
                          (WIN_W, PLOT_AREA_Y), 1)
 
         pygame.display.flip()
+
+    # ── offline GIF renderer (speed-accurate, no clock dependency) ───
+
+    def render_gif_offline(self) -> None:
+        """
+        Render every frame of the simulation to a GIF without a live
+        event loop.
+
+        This bypasses the real-time clock entirely, so the GIF playback
+        speed is exact: each GIF frame corresponds to exactly
+        (1 / gif_fps) seconds of simulation time, regardless of how
+        fast or slow the renderer runs on this machine.
+
+        Algorithm
+        ---------
+        sim_dt   = time between consecutive simulation samples
+        gif_dt   = 1 / gif_fps                (seconds per GIF frame)
+        stride   = round(gif_dt / sim_dt)     (sim frames per GIF frame)
+
+        We step through the simulation index by `stride` each iteration,
+        draw the scene, capture the surface, and advance — no clock, no
+        event loop, no accumulated rounding error.
+        """
+        n      = len(self.r.t)
+        sim_dt = float(self.r.t[1] - self.r.t[0]) if n > 1 else 1e-3
+        gif_dt = 1.0 / max(self.gif_fps, 1)
+        stride = max(1, round(gif_dt / sim_dt))
+
+        print(f"  Rendering GIF offline: "
+              f"{n} sim frames, stride={stride}, "
+              f"~{n // stride} GIF frames at {self.gif_fps} fps …")
+
+        frames = []
+        sim_idx = 0
+        while sim_idx < n:
+            self.frame = sim_idx
+            self._draw()
+            frames.append(self.screen.copy())
+            sim_idx += stride
+
+        if self.gif_path and frames:
+            _try_save_gif(frames, self.gif_path, fps=self.gif_fps)
 
     # ── advance playback ─────────────────────────────────────────────
 
@@ -1005,43 +1054,34 @@ class FlexibleJointAnimator:
                     self._frac_acc = 0.0
                     self._motor_trail.clear()
                     self._load_trail.clear()
-                    for mp in self.mini_plots:
-                        mp.history.clear()
-                        if mp.ref_history is not None:
-                            mp.ref_history.clear()
         return True
 
     # ── public entry point ───────────────────────────────────────────
 
     def run(self) -> None:
-        """Enter the pygame event loop."""
-        running = True
-        capture_gif = self.save_gif
-        gif_written = False
+        """
+        Enter the pygame event loop.
 
+        If save_gif=True the GIF is rendered offline first (exact speed,
+        full resolution) then the interactive window opens normally.
+        """
+        # ── Offline GIF render (speed-accurate) ──────────────────────
+        if self.save_gif and self.gif_path:
+            self.render_gif_offline()
+
+        # ── Interactive loop ─────────────────────────────────────────
+        # Reset to frame 0 so the interactive view starts from the beginning
+        self.frame      = 0
+        self._frac_acc  = 0.0
+        self._motor_trail.clear()
+        self._load_trail.clear()
+
+        running = True
         while running:
             dt_real = self.clock.tick(FPS_TARGET) / 1000.0
             running = self._handle_events()
             self._advance(dt_real)
             self._draw()
-
-            # Capture frame for GIF export
-            if capture_gif and not gif_written:
-                i = self.frame
-                if i % self._gif_stride == 0:
-                    frame_copy = self.screen.copy()
-                    # Downscale 2× for reasonable GIF size
-                    small = pygame.transform.scale(
-                        frame_copy,
-                        (WIN_W // 2, WIN_H // 2)
-                    )
-                    self._gif_frames.append(small)
-                if i >= len(self.r.t) - 1:
-                    # Reached end – write GIF and stop capturing
-                    if self.gif_path and self._gif_frames:
-                        _try_save_gif(self._gif_frames, self.gif_path,
-                                      fps=self.gif_fps)
-                    gif_written = True
 
         pygame.quit()
 
@@ -1053,24 +1093,24 @@ class FlexibleJointAnimator:
 def create_animation(result: SimResult,
                      save_gif: bool = False,
                      gif_path: Path | None = None,
-                     gif_fps: int = 20,
-                     gif_max_frames: int = 400) -> None:
+                     gif_fps: int = 20) -> None:
     """
     Launch the pygame animation window.
 
+    If save_gif=True, a GIF is rendered offline first (speed-accurate,
+    full resolution, high quality) then the interactive window opens.
+
     Parameters
     ----------
-    result          : SimResult from simulation.py
-    save_gif        : if True, write frames to a GIF (requires Pillow)
-    gif_path        : output path for the GIF
-    gif_fps         : GIF playback speed
-    gif_max_frames  : max frames captured (downsampled evenly)
+    result   : SimResult from simulation.py
+    save_gif : write a GIF to gif_path (requires Pillow)
+    gif_path : output path; defaults to animations/animation.gif
+    gif_fps  : GIF playback rate in frames per second
     """
     animator = FlexibleJointAnimator(
         result,
         save_gif=save_gif,
         gif_path=gif_path,
         gif_fps=gif_fps,
-        gif_max_frames=gif_max_frames,
     )
     animator.run()

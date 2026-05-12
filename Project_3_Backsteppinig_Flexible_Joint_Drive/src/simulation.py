@@ -14,7 +14,9 @@ from dataclasses import dataclass, field
 from scipy.integrate import solve_ivp
 
 from system     import FlexibleJointSystem, SystemParams
-from controller import BacksteppingController, ControllerGains
+from controller import (BacksteppingController, ControllerGains,
+                        PDController, PDGains,
+                        PIDController, PIDGains)
 
 
 # ──────────────────────────────────────────────────────────────────────
@@ -47,6 +49,21 @@ def smooth_step_reference(t: float,
     dtheta  = amplitude * dsigma * ds_dt
     ddtheta = amplitude * dsigma * (1.0 - 2.0 * sigma) * ds_dt**2
     return theta, dtheta, ddtheta
+
+
+def equilibrium_reference(t: float,
+                          setpoint: float = 1.0) -> tuple[float, float, float]:
+    """
+    Constant setpoint reference — zero velocity and acceleration.
+
+    This is the scenario covered by the Lyapunov stability proof:
+    the system is initialised away from the equilibrium and the
+    controller must drive all states to (θ_l, ω_l, θ_m, ω_m) → (θ*, 0, θ*, 0).
+    Because θ̇_d = θ̈_d = 0 the error coordinates are time-invariant and
+    the Lyapunov function V is a genuine CLF — its decrease is guaranteed
+    by the design inequalities, not just along trajectories.
+    """
+    return setpoint, 0.0, 0.0
 
 
 def sinusoidal_reference(t: float,
@@ -86,38 +103,55 @@ class SimResult:
 # ──────────────────────────────────────────────────────────────────────
 
 def run_simulation(
-        sys_params:  SystemParams      | None = None,
-        ctrl_gains:  ControllerGains   | None = None,
-        x0:          np.ndarray        | None = None,
-        t_span:      tuple[float,float]       = (0.0, 10.0),
-        dt:          float                    = 1e-3,
-        reference:   str                      = "smooth_step",
-        ref_kwargs:  dict                     | None = None,
-        u_clip:      float                    = 100.0,
-        label:       str                      = "simulation",
+        sys_params:      SystemParams      | None = None,
+        ctrl_gains:      ControllerGains   | None = None,
+        pd_gains:        PDGains           | None = None,
+        pid_gains:       PIDGains          | None = None,
+        controller_type: str                      = "backstepping",
+        x0:              np.ndarray        | None = None,
+        t_span:          tuple[float,float]       = (0.0, 10.0),
+        dt:              float                    = 1e-3,
+        reference:       str                      = "smooth_step",
+        ref_kwargs:      dict                     | None = None,
+        u_clip:          float                    = 100.0,
+        label:           str                      = "simulation",
 ) -> SimResult:
     """
     Run a closed-loop simulation.
 
     Parameters
     ----------
-    sys_params  : system physical parameters (default if None)
-    ctrl_gains  : backstepping gains (default if None)
-    x0          : initial state [θ_l, ω_l, θ_m, ω_m] (zeros if None)
-    t_span      : (t_start, t_end) [s]
-    dt          : output sample interval [s]
-    reference   : one of {'smooth_step', 'step', 'sinusoidal'}
-    ref_kwargs  : keyword arguments forwarded to reference generator
-    u_clip      : torque saturation limit [N·m]
-    label       : human-readable tag for plots
+    sys_params      : system physical parameters (default if None)
+    ctrl_gains      : backstepping gains (used when controller_type='backstepping')
+    pd_gains        : PD gains           (used when controller_type='pd')
+    pid_gains       : PID gains          (used when controller_type='pid')
+    controller_type : 'backstepping' | 'pd' | 'pid'
+    x0              : initial state [θ_l, ω_l, θ_m, ω_m] (zeros if None)
+    t_span          : (t_start, t_end) [s]
+    dt              : output sample interval [s]
+    reference       : one of {'smooth_step', 'step', 'sinusoidal'}
+    ref_kwargs      : keyword arguments forwarded to reference generator
+    u_clip          : torque saturation limit [N·m]
+    label           : human-readable tag for plots
 
     Returns
     -------
     SimResult
     """
-    system  = FlexibleJointSystem(sys_params)
-    ctrl    = BacksteppingController(system, ctrl_gains)
-    ref_kw  = ref_kwargs or {}
+    system = FlexibleJointSystem(sys_params)
+
+    ctype = controller_type.lower()
+    if ctype == "backstepping":
+        ctrl = BacksteppingController(system, ctrl_gains)
+    elif ctype == "pd":
+        ctrl = PDController(system, pd_gains)
+    elif ctype == "pid":
+        ctrl = PIDController(system, pid_gains)
+    else:
+        raise ValueError(f"Unknown controller_type '{controller_type}'. "
+                         f"Choose from 'backstepping', 'pd', 'pid'.")
+
+    ref_kw = ref_kwargs or {}
 
     if x0 is None:
         x0 = np.zeros(4)
@@ -127,6 +161,7 @@ def run_simulation(
         "smooth_step":  smooth_step_reference,
         "step":         step_reference,
         "sinusoidal":   sinusoidal_reference,
+        "equilibrium":  equilibrium_reference,
     }
     if reference not in _ref_map:
         raise ValueError(f"Unknown reference '{reference}'. "
@@ -236,4 +271,66 @@ def run_gain_study(gain_sets: list[ControllerGains],
         r = run_simulation(ctrl_gains=gains, label=label, **sim_kwargs)
         results.append(r)
         sim_kwargs["label"] = f"Gains set {i+2}"   # won't be used after first pop
+    return results
+
+def run_equilibrium_stabilisation(
+        setpoint:    float = 1.0,
+        x0:          np.ndarray | None = None,
+        **sim_kwargs,
+) -> SimResult:
+    """
+    Stabilise the system to a constant equilibrium θ* = setpoint.
+
+    The initial condition defaults to a perturbed state
+    (θ_l=0, ω_l=0.5, θ_m=0.3, ω_m=0) so the transient is visible.
+    This is the scenario the Lyapunov proof covers: because θ̇_d = θ̈_d = 0,
+    V̇ ≤ 0 is a strict global result, not just along time-varying trajectories.
+    """
+    if x0 is None:
+        # Perturbed away from equilibrium: load at 0, motor at 0.3 rad,
+        # small initial load velocity to excite the shaft dynamics
+        x0 = np.array([0.0, 0.5, 0.3, 0.0])
+
+    sim_kwargs.setdefault("reference",  "equilibrium")
+    sim_kwargs.setdefault("ref_kwargs", {"setpoint": setpoint})
+    sim_kwargs.setdefault("label",      f"Backstepping equilibrium θ*={setpoint:.2f}")
+    sim_kwargs.setdefault("t_span",     (0.0, sim_kwargs.pop("t_end", 10.0)))
+    sim_kwargs.setdefault("dt",         5e-4)
+    sim_kwargs.setdefault("u_clip",     200.0)
+    return run_simulation(x0=x0, **sim_kwargs)
+
+
+def run_controller_comparison(
+        base_kwargs: dict | None = None,
+        t_end: float = 10.0,
+        use_equilibrium: bool = False,
+) -> list[SimResult]:
+    """
+    Run backstepping, PD, and PID on the same scenario.
+
+    Parameters
+    ----------
+    base_kwargs     : shared kwargs (sys_params, reference, ref_kwargs, u_clip, x0, dt)
+    t_end           : simulation end time [s]
+    use_equilibrium : if True, use constant-setpoint reference (Lyapunov scenario)
+                      instead of the smooth-step trajectory
+    """
+    kw = dict(base_kwargs or {})
+    kw.setdefault("t_span",  (0.0, t_end))
+    kw.setdefault("dt",      5e-4)
+    kw.setdefault("u_clip",  200.0)
+
+    if use_equilibrium:
+        kw.setdefault("reference",  "equilibrium")
+        kw.setdefault("ref_kwargs", {"setpoint": 1.0})
+        kw.setdefault("x0",         np.array([0.0, 0.5, 0.3, 0.0]))
+    else:
+        kw.setdefault("reference",  "smooth_step")
+
+    results = []
+    for ctype, lbl in [("pd",          "PD"),
+                        ("pid",         "PID"),
+                        ("backstepping","Backstepping")]:
+        r = run_simulation(controller_type=ctype, label=lbl, **kw)
+        results.append(r)
     return results
