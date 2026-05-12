@@ -1,0 +1,239 @@
+"""
+simulation.py
+-------------
+Functions to run closed-loop and open-loop simulations of the
+flexible-joint drive.
+
+All simulation results are returned as SimResult dataclasses so that
+visualization.py can consume them without any knowledge of the ODE solver.
+"""
+
+from __future__ import annotations
+import numpy as np
+from dataclasses import dataclass, field
+from scipy.integrate import solve_ivp
+
+from system     import FlexibleJointSystem, SystemParams
+from controller import BacksteppingController, ControllerGains
+
+
+# ──────────────────────────────────────────────────────────────────────
+# Reference trajectory generators
+# ──────────────────────────────────────────────────────────────────────
+
+def step_reference(t: float,
+                   amplitude: float = 1.0,
+                   t_step: float = 0.5) -> tuple[float, float, float]:
+    """Heaviside step; derivatives are zero (discontinuous – use for testing)."""
+    theta = amplitude if t >= t_step else 0.0
+    return theta, 0.0, 0.0
+
+
+def smooth_step_reference(t: float,
+                           amplitude: float = 1.0,
+                           t_rise: float    = 1.0,
+                           t_start: float   = 0.5) -> tuple[float, float, float]:
+    """
+    Smooth sigmoid transition:  θ_d(t) = A·σ((t−t_start)·8/t_rise)
+    where σ is the logistic function.  Provides C^∞ reference with
+    bounded second derivative.
+    """
+    s      = (t - t_start) * 8.0 / t_rise
+    sigma  = 1.0 / (1.0 + np.exp(-s))
+    theta  = amplitude * sigma
+
+    ds_dt   = 8.0 / t_rise
+    dsigma  = sigma * (1.0 - sigma)
+    dtheta  = amplitude * dsigma * ds_dt
+    ddtheta = amplitude * dsigma * (1.0 - 2.0 * sigma) * ds_dt**2
+    return theta, dtheta, ddtheta
+
+
+def sinusoidal_reference(t: float,
+                          amplitude: float = 1.0,
+                          frequency: float = 0.5) -> tuple[float, float, float]:
+    """Sinusoidal tracking reference."""
+    omega  = 2.0 * np.pi * frequency
+    theta  = amplitude * np.sin(omega * t)
+    dtheta = amplitude * omega * np.cos(omega * t)
+    ddtheta = -amplitude * omega**2 * np.sin(omega * t)
+    return theta, dtheta, ddtheta
+
+
+# ──────────────────────────────────────────────────────────────────────
+# Result container
+# ──────────────────────────────────────────────────────────────────────
+
+@dataclass
+class SimResult:
+    """Container for a single simulation run."""
+    t:         np.ndarray           # time vector             [N]
+    x:         np.ndarray           # states                  [N×4]
+    u:         np.ndarray           # control input           [N]
+    theta_d:   np.ndarray           # reference position      [N]
+    dtheta_d:  np.ndarray           # reference velocity      [N]
+    lyapunov:  np.ndarray           # Lyapunov value V(t)     [N]
+    e1:        np.ndarray           # position error          [N]
+    e2:        np.ndarray           # velocity error          [N]
+    e3:        np.ndarray           # torque error            [N]
+    tau_c:     np.ndarray           # coupling torque         [N]
+    energy:    np.ndarray           # total mechanical energy [N]
+    label:     str = "simulation"
+
+
+# ──────────────────────────────────────────────────────────────────────
+# Core simulation runner
+# ──────────────────────────────────────────────────────────────────────
+
+def run_simulation(
+        sys_params:  SystemParams      | None = None,
+        ctrl_gains:  ControllerGains   | None = None,
+        x0:          np.ndarray        | None = None,
+        t_span:      tuple[float,float]       = (0.0, 10.0),
+        dt:          float                    = 1e-3,
+        reference:   str                      = "smooth_step",
+        ref_kwargs:  dict                     | None = None,
+        u_clip:      float                    = 100.0,
+        label:       str                      = "simulation",
+) -> SimResult:
+    """
+    Run a closed-loop simulation.
+
+    Parameters
+    ----------
+    sys_params  : system physical parameters (default if None)
+    ctrl_gains  : backstepping gains (default if None)
+    x0          : initial state [θ_l, ω_l, θ_m, ω_m] (zeros if None)
+    t_span      : (t_start, t_end) [s]
+    dt          : output sample interval [s]
+    reference   : one of {'smooth_step', 'step', 'sinusoidal'}
+    ref_kwargs  : keyword arguments forwarded to reference generator
+    u_clip      : torque saturation limit [N·m]
+    label       : human-readable tag for plots
+
+    Returns
+    -------
+    SimResult
+    """
+    system  = FlexibleJointSystem(sys_params)
+    ctrl    = BacksteppingController(system, ctrl_gains)
+    ref_kw  = ref_kwargs or {}
+
+    if x0 is None:
+        x0 = np.zeros(4)
+
+    # Choose reference generator
+    _ref_map = {
+        "smooth_step":  smooth_step_reference,
+        "step":         step_reference,
+        "sinusoidal":   sinusoidal_reference,
+    }
+    if reference not in _ref_map:
+        raise ValueError(f"Unknown reference '{reference}'. "
+                         f"Choose from {list(_ref_map)}")
+    ref_fn = _ref_map[reference]
+
+    # Build dense output time vector
+    t_eval = np.arange(t_span[0], t_span[1] + dt, dt)
+    N = len(t_eval)
+
+    # Allocate history arrays
+    x_hist    = np.zeros((N, 4))
+    u_hist    = np.zeros(N)
+    td_hist   = np.zeros(N)
+    dtd_hist  = np.zeros(N)
+    lya_hist  = np.zeros(N)
+    e1_hist   = np.zeros(N)
+    e2_hist   = np.zeros(N)
+    e3_hist   = np.zeros(N)
+    tauc_hist = np.zeros(N)
+    ener_hist = np.zeros(N)
+
+    # ── integrate with fixed-step RK45 (scipy dense output) ──────────
+    x_cur = x0.copy()
+    x_hist[0] = x_cur
+
+    for i, t in enumerate(t_eval):
+        theta_d, dtheta_d, ddtheta_d = ref_fn(t, **ref_kw)
+
+        u_raw = ctrl.compute(t, x_cur, theta_d, dtheta_d, ddtheta_d)
+        u     = float(np.clip(u_raw, -u_clip, u_clip))
+
+        # Log
+        e1, e2, e3 = ctrl.errors
+        u_hist[i]    = u
+        td_hist[i]   = theta_d
+        dtd_hist[i]  = dtheta_d
+        lya_hist[i]  = ctrl.lyapunov_value(x_cur, theta_d, dtheta_d)
+        e1_hist[i]   = e1
+        e2_hist[i]   = e2
+        e3_hist[i]   = e3
+        tauc_hist[i] = system.coupling_torque(x_cur)
+        ener_hist[i] = system.total_energy(x_cur)
+
+        if i < N - 1:
+            # One RK4 step
+            dt_int = t_eval[i + 1] - t
+            x_cur = _rk4_step(system, t, x_cur, u, dt_int)
+            x_hist[i + 1] = x_cur
+
+    return SimResult(
+        t        = t_eval,
+        x        = x_hist,
+        u        = u_hist,
+        theta_d  = td_hist,
+        dtheta_d = dtd_hist,
+        lyapunov = lya_hist,
+        e1       = e1_hist,
+        e2       = e2_hist,
+        e3       = e3_hist,
+        tau_c    = tauc_hist,
+        energy   = ener_hist,
+        label    = label,
+    )
+
+
+def _rk4_step(system: FlexibleJointSystem,
+              t: float,
+              x: np.ndarray,
+              u: float,
+              h: float) -> np.ndarray:
+    """Classic 4th-order Runge-Kutta with fixed step h."""
+    k1 = system.dynamics(t,          x,               u)
+    k2 = system.dynamics(t + h/2,    x + h/2 * k1,   u)
+    k3 = system.dynamics(t + h/2,    x + h/2 * k2,   u)
+    k4 = system.dynamics(t + h,      x + h   * k3,   u)
+    return x + (h / 6.0) * (k1 + 2*k2 + 2*k3 + k4)
+
+
+# ──────────────────────────────────────────────────────────────────────
+# Convenience wrappers
+# ──────────────────────────────────────────────────────────────────────
+
+def run_step_response(**kwargs) -> SimResult:
+    """Step-reference closed-loop simulation (smooth transition)."""
+    kwargs.setdefault("reference", "smooth_step")
+    kwargs.setdefault("label", "Step response")
+    return run_simulation(**kwargs)
+
+
+def run_sinusoidal_tracking(**kwargs) -> SimResult:
+    """Sinusoidal tracking simulation."""
+    kwargs.setdefault("reference", "sinusoidal")
+    kwargs.setdefault("label", "Sinusoidal tracking")
+    return run_simulation(**kwargs)
+
+
+def run_gain_study(gain_sets: list[ControllerGains],
+                   **sim_kwargs) -> list[SimResult]:
+    """
+    Run the same scenario with multiple gain sets and return all results.
+    Useful for tuning visualisations.
+    """
+    results = []
+    for i, gains in enumerate(gain_sets):
+        label = sim_kwargs.pop("label", f"Gains set {i+1}")
+        r = run_simulation(ctrl_gains=gains, label=label, **sim_kwargs)
+        results.append(r)
+        sim_kwargs["label"] = f"Gains set {i+2}"   # won't be used after first pop
+    return results
