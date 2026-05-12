@@ -5,8 +5,8 @@ This git is a collection of advanced control methods implemented on Python. Each
 ## Repository structure
 CONTROL-SANDBOX/    
 ├── Project_1_Lyapunov_based_control_cartpole/  
-├── Project_2_Adaptive_control_name/    
-├── Project_3_Backstepping_name/    
+├── Project_2_Adaptive_control_Pitch_plane/    
+├── Project_3_Backstepping_Flexible_Joint_Drive/    
 ├── Project_4_Model_predictive_control_name/    
 ├── .gitignore  
 ├── README.md   
@@ -39,8 +39,17 @@ python main.py
 ```
 *Results:* The aircraft is stabilised, the  the controller works.
 
-### Project 3 – Backstepping control (under maintenance)
-Will demonstrate the backstepping design methodology.  A control function will be constructed step by step.
+### Project 3 – Backstepping control Flexible Joint Drive
+**System:** Nonlinear Flexible-Joint Drive  
+**Control method:** Certanty equivalance controller   
+**Goal:** Stabilise the aircraft in case of icing.
+![alt text] GIIIIFFFF
+**Run Project 3:**
+```bash
+cd Project_3_Backstepping_Flexible_Joint_Drive/src
+python main.py         
+```
+*Results:* The aircraft is stabilised, the  the controller works.
 
 ### Project 4 – Model Predictive Control (under maintenance)
 Will implement a nonlinear MPC for a constrained system 
