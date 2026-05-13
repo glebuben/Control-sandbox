@@ -437,15 +437,21 @@ def plot_lyapunov(results: list[SimResult],
                   filename: str = "lyapunov.png") -> None:
     """
     Three-panel figure: V(t) log-scale, E(t), dV/dt.
-    Backstepping plotted last; each controller gets its own colour.
-    For equilibrium stabilisation V should decay monotonically to zero.
-    For trajectory tracking V decays to a residual set.
+
+    V(t) and dV/dt are only plotted for backstepping results — the
+    composite Lyapunov function and its negativity proof are specific to
+    the backstepping design and have no meaning for PD/PID controllers.
+    E(t) is plotted for all controllers as it is a physical quantity.
     """
     sorted_r = _sort_results(results)
 
     fig, axes = plt.subplots(3, 1, figsize=(12, 10), sharex=True)
     _apply_dark_style(fig, axes)
     fig.subplots_adjust(hspace=0.45)
+
+    def _is_linear(r: SimResult) -> bool:
+        lbl = r.label.lower()
+        return _match_ctrl(lbl, "pd") or _match_ctrl(lbl, "pid")
 
     for idx, r in enumerate(sorted_r):
         t   = r.t
@@ -455,26 +461,34 @@ def plot_lyapunov(results: list[SimResult],
         lw  = 2.0 if "backstepping" in r.label.lower() else 1.4
         alp = 1.0 if "backstepping" in r.label.lower() else 0.75
 
-        V_safe = np.where(V > 1e-14, V, 1e-14)
-        axes[0].semilogy(t, V_safe, lw=lw, alpha=alp, color=pc,
-                         label=r.label)
-        axes[1].plot(t, E, lw=lw, alpha=alp, color=pc,
-                     label=r.label)
+        # ── V(t) and dV/dt — backstepping only ──────────────────────
+        if not _is_linear(r):
+            V_safe = np.where(V > 1e-14, V, 1e-14)
+            axes[0].semilogy(t, V_safe, lw=lw, alpha=alp, color=pc,
+                             label=r.label)
 
-        dV_raw = np.gradient(V, t)
-        win = min(51, max(5, len(dV_raw) // 10 * 2 + 1))
-        dV  = savgol_filter(dV_raw, window_length=win, polyorder=3)
-        axes[2].plot(t, dV, lw=max(1.0, lw - 0.4), alpha=alp,
-                     color=pc, label=r.label)
-        axes[2].fill_between(t, dV, 0, where=(dV > 0),
-                             color=pc, alpha=0.15)
+            dV_raw = np.gradient(V, t)
+            win = min(51, max(5, len(dV_raw) // 10 * 2 + 1))
+            dV  = savgol_filter(dV_raw, window_length=win, polyorder=3)
+            axes[2].plot(t, dV, lw=max(1.0, lw - 0.4), alpha=alp,
+                         color=pc, label=r.label)
+            axes[2].fill_between(t, dV, 0, where=(dV > 0),
+                                 color=pc, alpha=0.15)
+
+        # ── E(t) — all controllers ───────────────────────────────────
+        axes[1].plot(t, E, lw=lw, alpha=alp, color=pc, label=r.label)
 
     axes[2].axhline(0, color=PALETTE["grid"], lw=1.0, linestyle="--")
 
-    axes[0].set_title(r"Composite Lyapunov Function  $V(t) = \frac{1}{2}e_1^2 + \frac{1}{2}e_2^2 + \frac{1}{2}e_3^2$",
+    axes[0].set_title(
+        r"Composite Lyapunov Function  $V(t) = \frac{1}{2}e_1^2 + \frac{1}{2}e_2^2 + \frac{1}{2}e_3^2$"
+        r"  (backstepping only)",
+        **_FONT_TITLE)
+    axes[1].set_title(r"Total Mechanical Energy  $E(t)$  [J]  (all controllers)",
                       **_FONT_TITLE)
-    axes[1].set_title(r"Total Mechanical Energy  $E(t)$  [J]", **_FONT_TITLE)
-    axes[2].set_title(r"Lyapunov Rate  $\dot{V}$  ($\leq 0 \Rightarrow$ stable)",  **_FONT_TITLE)
+    axes[2].set_title(
+        r"Lyapunov Rate  $\dot{V}$  ($\leq 0 \Rightarrow$ stable,  backstepping only)",
+        **_FONT_TITLE)
     _label_xy(axes[0], "", r"$V(t)$  [log]")
     _label_xy(axes[1], "", r"$E(t)$  [J]")
     _label_xy(axes[2], r"time [s]", r"$\dot{V}$")

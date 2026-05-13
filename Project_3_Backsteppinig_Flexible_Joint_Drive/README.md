@@ -48,14 +48,14 @@ Full mathematical derivation: [model_motor_draftV3.md](model_motor_draftV3.md) �
 
 **State & Control Vectors**
 $$
-S = \begin{bmatrix} \theta_l \\ \omega_l \\ \theta_m \\ \omega_m \end{bmatrix} \in \mathbb{R}^4
+s = \begin{bmatrix} \theta_l \\ \omega_l \\ \theta_m \\ \omega_m \end{bmatrix} \in \mathbb{R}^4
 $$
 $$
 a = \tau_m  \in \mathbb{R}
 $$
 | Symbol | Meaning | Units |
 |--------|---------|-------|
-| $S$ | State vector | – |
+| $s$ | State vector | – |
 | $\theta_l$ | Load angular position | rad |
 | $\omega_l$ | Load angular velocity | rad/s |
 | $\theta_m$ | Motor angular position | rad |
@@ -64,7 +64,7 @@ $$
 | $\tau_m $ | Motor electromagnetic torque | N·m |
 
 **Nonlinear Dynamics**
-$$\boxed{\dot{S} = f(S) + g a + d(t)}$$
+$$\boxed{\dot{s} = f(s) + g a + d(t)}$$
 
 where $g = [0, 0, 0, 1/J_m]^\top$ and $d(t) = [0, d_l(t), 0, d_m(t)]^\top$ represents bounded acceleration disturbances.
 
@@ -73,16 +73,16 @@ where $g = [0, 0, 0, 1/J_m]^\top$ and $d(t) = [0, d_l(t), 0, d_m(t)]^\top$ repre
 Explicit form:
 $$
 \begin{aligned}
-\dot{S}_1 &= S_2 \\
-\dot{S}_2 &= \frac{1}{J_l}\Bigl[ k(S_3-S_1) + k_3(S_3-S_1)^3 + b(S_4-S_2) - T_{f,l}(S_2) \Bigr] + d_l(t) \\
-\dot{S}_3 &= S_4 \\
-\dot{S}_4 &= \frac{1}{J_m}\Bigl[ K_t u - k(S_3-S_1) - k_3(S_3-S_1)^3 - b(S_4-S_2) - T_{f,m}(S_4) \Bigr] + d_m(t)
+\dot{s}_1 &= s_2 \\
+\dot{s}_2 &= \frac{1}{J_l}\Bigl[ k(s_3-s_1) + k_3(s_3-s_1)^3 + b(s_4-s_2) - T_{f,l}(s_2) \Bigr] + d_l(t) \\
+\dot{s}_3 &= s_4 \\
+\dot{s}_4 &= \frac{1}{J_m}\Bigl[ K_t u - k(s_3-s_1) - k_3(s_3-s_1)^3 - b(s_4-s_2) - T_{f,m}(s_4) \Bigr] + d_m(t)
 \end{aligned}
 $$
 | Symbol | Meaning | Units |
 |--------|---------|-------|
-| $\dot{S}$ | State derivative | varies |
-| $f(S), g$ | Drift & input vector fields | varies |
+| $\dot{s}$ | State derivative | varies |
+| $f(s), g$ | Drift & input vector fields | varies |
 | $J_l, J_m$ | Load & motor inertia | kg·m² |
 | $k, k_3, b$ | Linear/cubic stiffness, damping | N·m/rad, N·m/rad³, N·m·s/rad |
 | $T_{f,l}, T_{f,m}$ | Smooth friction torques | N·m |
@@ -94,7 +94,7 @@ Full derivation: [model_motor_draftV3.md](model_motor_draftV3.md) §2, [readme_f
 
 **Relative Coordinates & Transmitted Torque**   
 From kinematic coupling and constitutive shaft behaviour:
-$$\delta \triangleq \theta_m - \theta_l = S_3 - S_1, \qquad \nu \triangleq \omega_m - \omega_l = S_4 - S_2$$
+$$\delta \triangleq \theta_m - \theta_l = s_3 - s_1, \qquad \nu \triangleq \omega_m - \omega_l = s_4 - s_2$$
 The elastic-dissipative torque transmitted through the flexible shaft is:
 $$\tau_c = k\delta + k_3\delta^3 + b\nu$$
 | Symbol | Meaning | Units |
@@ -196,13 +196,54 @@ Interactive Pygame Controls:
 | PgUp / PgDown | Speed control | S / G | Save PNG / Export GIF |
 | Q / Esc | Quit | Click scrubber | Seek to time |
 
+The technical content is mostly sound but there are a few issues to address:
+
+1. **The Lyapunov claim is slightly overstated.** The brief oscillation at the start of V(t) means it is *not* strictly monotonically decreasing from t=0 — it decreases after a short transient. The theoretical guarantee holds asymptotically, not pointwise from the first sample. Claiming strict monotonicity when the plot visibly shows a dip-and-rise at t≈0 would invite criticism.
+
+2. **"command filtering" is not in your model.** Your system has torque saturation clipping, not a filter. Don't claim something you haven't implemented.
+
+3. **The discussion section undersells the result.** "The only visible advantage is convergence speed" is too weak — the tail plot shows persistent oscillation and failure to regulate, which is a qualitative difference, not just a speed difference.
+
+4. **Minor language issues** throughout — passive constructions, informal phrasing, missing articles.
+
+Here is a revised version:
+
+---
+
 ## 6. Results
-The baseline linear controller maintains stability near equilibrium but exhibits sustained torsional oscillations and steady-state position error when shaft twist exceeds $\delta \approx 0.1$ rad. The cubic stiffness $k_3\delta^3$ shifts the resonance frequency by $\approx 35\%$, detuning the fixed-gain regulator. Smooth friction saturation further degrades low-speed tracking accuracy.
 
-The backstepping controller shows a brief transient during initialisation, then rapidly converges $\theta_l(t) \to \theta_d(t)$ with zero steady-state error. The recursive design explicitly cancels $k_3\delta^3$ and $T_f(\omega)$, shapes the elastic potential, and injects virtual damping into the coupling channel. Phase portraits confirm that the closed-loop trajectory collapses to the origin in error space, while the Lyapunov function $\mathcal{V}(z)$ decays monotonically to zero, validating the theoretical $\dot{\mathcal{V}} \leq 0$ proof. Torque demand remains within actuator limits due to gain scaling and command filtering.
+### Backstepping
 
-📝 Discussion & Limitations
-The nominal backstepping law guarantees large-domain asymptotic stability under exact model knowledge and ideal current tracking. In practice, parameter uncertainty ($J_l, k, k_3, b, K_t$) and measurement noise on velocity estimates can degrade exact cancellation. The control law requires $\dot{\tau}_c^*$, which involves time derivatives of reference signals and nonlinear terms; in implementation, command filters or dynamic surface control are recommended to avoid noise amplification. Torque saturation introduces local stability margins, requiring gain scheduling or anti-windup augmentation. Bounded disturbances preserve Input-to-State Stability (ISS), with ultimate error bounds inversely proportional to $c_1, c_2, c_3$. For experimental deployment, adaptive laws or disturbance observers can be integrated into the backstepping recursion without altering the core Lyapunov structure.
+![alt text](animations/animation_backstepping.gif)
+
+The backstepping controller exhibits a brief transient during initialisation, then rapidly drives $\theta_l(t) \to \theta_d$ with zero steady-state error. The recursive design analytically cancels the cubic stiffness term $k_3\delta^3$ and the smooth friction model $T_f(\omega)$, explicitly shapes the elastic potential energy stored in the coupling, and injects virtual damping into the torque transmission channel at each step of the Lyapunov construction.
+
+We verify closed-loop stability by examining the composite Lyapunov function $\mathcal{V} = \tfrac{1}{2}e_1^2 + \tfrac{1}{2}e_2^2 + \tfrac{1}{2}e_3^2$. After an initial transient — during which the large initial shaft twist causes the error coordinates to evolve rapidly — $\mathcal{V}$ decreases monotonically to zero, consistent with the theoretical guarantee $\dot{\mathcal{V}} \leq 0$ derived in the backstepping design.
+
+![alt text](figures/ctrl_compare_eq_lyapunov.png)
+
+### PD
+
+![alt text](animations/animation_pd.gif)
+
+### PID
+
+![alt text](animations/animation_pid.gif)
+
+### Discussion
+
+At first glance, all three controllers appear to reach the vicinity of the desired position. The full simulation plot suggests the primary advantage of backstepping is faster convergence.
+
+![alt text](figures/ctrl_compare_eq_states.png)
+
+However, the steady-state detail plot — showing only the final second of the simulation — reveals a more subtle but structurally important difference. Both PD and PID converge to a stationary state, but that state is not $\theta_d = 1.0\,\text{rad}$. The PD controller stabilises at a constant positive offset above the setpoint, which is the expected behaviour for a proportional-derivative controller acting on a plant with Coulomb friction and nonlinear stiffness: with no integral action, the proportional term can only balance the steady-state disturbance torque at a nonzero position error. The PID controller, while theoretically capable of eliminating steady-state error through integration, shows a persistent and slowly drifting offset over the simulation horizon, suggesting the integral state has not yet converged — a consequence of the slow time constant introduced by the low integral gain $K_i = 1$ relative to the plant stiffness. In both cases the residual tracking error $e_1 = \theta_l - \theta_d$ remains visibly nonzero at $t = 10\,\text{s}$, while the backstepping controller achieves $e_1 \approx 0$ to numerical precision.
+
+![alt text](figures/ctrl_compare_eq_states_tail.png)
+
+Phase portraits confirm these observations. All three trajectories converge to a fixed point (zero velocity), but the final positions differ: PD and PID land slightly above $\theta_d$, while the backstepping trajectory terminates exactly at the target. The backstepping controller achieves this because it explicitly accounts for the shaft compliance, friction, and load dynamics in the control law — the recursive Lyapunov construction guarantees convergence to the exact equilibrium rather than to a bias point determined by the balance between the proportional gain and the unmodelled internal torques.
+
+![alt text](figures/ctrl_compare_eq_phase_portraits.png)
+
 
 ***AI guidance***   
 Acknowledgement of AI usage for theoretical information research, structural formatting of the documentation, controller tuning guidance.
