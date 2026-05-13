@@ -383,6 +383,12 @@ Phase portraits confirm these observations. All three trajectories converge to a
 
 Beyond equilibrium stabilisation, we tested all three controllers on two time-varying reference signals: a smooth sigmoid step and a sinusoidal trajectory at 0.4 Hz.
 
+The backstepping controller was designed with $\theta_d$ treated as a time-varying function rather than a fixed setpoint. At each step of the recursive construction the virtual controls $\alpha_1$ and $\alpha_2$ are differentiated along the closed-loop trajectories, which requires $\dot\theta_d$, $\ddot\theta_d$, and $\dddot\theta_d$ to be available. This imposes a regularity requirement on the reference: $\theta_d$ must be differentiable up to third order for the feedforward terms in the control law to be well-defined. Both references used here satisfy this condition — the sigmoid is $C^\infty$ by construction, and the sinusoid has derivatives of all orders.
+
+> **Note on Lyapunov analysis for trajectory tracking.**  In our simulations $\mathcal{V}(t)$ is not monotonically decreasing for the sinusoidal case, which we attribute primarily to discretisation error: the RK4 integrator introduces a finite-step approximation of the continuous-time dynamics, and the strict $\dot{\mathcal{V}} \leq 0$ inequality can be violated at individual time steps even when the continuous-time system would satisfy it. Tighter step sizes reduce but do not eliminate this effect.
+
+One further observation: in the trajectory tracking setting backstepping has an informational advantage over PD and PID. The backstepping control law explicitly uses $\dot\theta_d$, $\ddot\theta_d$, and $\dddot\theta_d$ as feedforward terms, giving the controller precise knowledge of how the reference is evolving. PD and PID act only on the current position error and its derivative, with no access to higher-order reference information. This structural difference — not merely gain tuning — is part of why backstepping tracks the sinusoidal reference more accurately.
+
 #### Smooth step
 
 The sigmoid step results closely mirror the equilibrium case. All three controllers converge, but PD settles with a nonzero steady-state offset and PID shows a slow residual drift, while backstepping achieves near-zero tracking error. This is consistent with the equilibrium analysis: the structural limitation of PD and PID — their inability to account for the shaft compliance and friction — manifests as a bias in steady state regardless of whether the reference is constant or transitions smoothly between two constant values.
@@ -392,16 +398,14 @@ The sigmoid step results closely mirror the equilibrium case. All three controll
 
 #### Sinusoidal reference
 
-The sinusoidal case reveals a qualitatively different failure mode. At first glance all three controllers appear to follow the reference, but the steady-state detail and phase portraits show that PD and PID converge to a sinusoidal orbit of larger amplitude than $\theta_d(t)$, with a persistent phase lag. Backstepping, by contrast, tracks the reference with substantially smaller error throughout.
+The sinusoidal case reveals a qualitatively different failure mode. At first glance all three controllers appear to follow the reference, but the steady-state detail and phase portraits show that PD and PID converge to a sinusoidal orbit displaced from $\theta_d(t)$, with a persistent amplitude error and phase lag that neither controller can correct without an explicit model of the shaft dynamics and reference derivatives. Backstepping, by contrast, tracks the reference with substantially smaller error throughout.
 
 ![alt text](figures/ctrl_compare_sin_states.png)
 ![alt text](figures/ctrl_compare_sin_states_tail.png)
 
-Phase portraits confirm this: the PD and PID trajectories form closed orbits in $(\theta_l, \omega_l)$ space that are displaced from the backstepping orbit, reflecting a nonzero amplitude and phase error that neither controller can correct without an explicit model of the flexible shaft dynamics.
+Phase portraits confirm this: the PD and PID trajectories form closed orbits in $(\theta_l, \omega_l)$ space displaced from the backstepping orbit, reflecting the amplitude and phase errors visible in the time-domain plots.
 
 ![alt text](figures/ctrl_compare_sin_phase_portraits.png)
-
-> **Note.** There is no formal proof that the backstepping controller converges to an arbitrary time-varying trajectory — the theoretical guarantee derived in this work applies strictly to the equilibrium case, where $\dot\theta_d = \ddot\theta_d = 0$ and the Lyapunov function $\mathcal{V}$ decreases monotonically. The observed sinusoidal tracking is an empirical finding: the recursive nonlinear cancellation and energy shaping of the backstepping design happen to generalise well beyond the proved regime, but this should not be interpreted as a stability certificate for trajectory tracking.
 
 ***AI guidance***   
 Acknowledgement of AI usage for theoretical information research, structural formatting of the documentation, controller tuning guidance.
