@@ -31,7 +31,6 @@ Project_3_Backstepping_Flexible_Joint_Drive/
 │   ├── simulation.py      # data collection & numerical integration
 │   ├── visualization.py   # matplotlib plots & pygame animation
 │   └── main.py            # entry point & CLI parser
-├── configs/               # YAML/JSON parameter files
 ├── figures/               # static plots (PNG/PDF)
 ├── animations/            # GIF exports
 ├── code_description.md    # repository guide & CLI reference
@@ -47,12 +46,11 @@ Full mathematical derivation: [model_motor_draftV3.md](model_motor_draftV3.md) �
 ![alt text](figures/643f7356-6309-46ce-a87d-aaad20e8a6ec.jpg)
 
 **State & Control Vectors**
-$$
-s = \begin{bmatrix} \theta_l \\ \omega_l \\ \theta_m \\ \omega_m \end{bmatrix} \in \mathbb{R}^4
-$$
-$$
-a = \tau_m  \in \mathbb{R}
-$$
+
+$$s = \begin{bmatrix} \theta_l \\ \omega_l \\ \theta_m \\ \omega_m \end{bmatrix} \in \mathbb{R}^4$$
+
+$$a = \tau_m  \in \mathbb{R}$$
+
 | Symbol | Meaning | Units |
 |--------|---------|-------|
 | $s$ | State vector | – |
@@ -64,6 +62,7 @@ $$
 | $\tau_m $ | Motor electromagnetic torque | N·m |
 
 **Nonlinear Dynamics**
+
 $$\boxed{\dot{s} = f(s) + g a + d(t)}$$
 
 where $g = [0, 0, 0, 1/J_m]^\top$ and $d(t) = [0, d_l(t), 0, d_m(t)]^\top$ represents bounded acceleration disturbances.
@@ -71,14 +70,14 @@ where $g = [0, 0, 0, 1/J_m]^\top$ and $d(t) = [0, d_l(t), 0, d_m(t)]^\top$ repre
 **NOTE:** The terms $d_l(t)$ and $d_m(t)$ represent bounded acceleration disturbances due to unmodeled payload variations, external torque perturbations, and parameter identification errors. For the nominal backstepping synthesis, we assume $d_l(t) \equiv d_m(t) \equiv 0$ to focus on exact nonlinear cancellation.
 
 Explicit form:
-$$
-\begin{aligned}
+
+$$\begin{aligned}
 \dot{s}_1 &= s_2 \\
 \dot{s}_2 &= \frac{1}{J_l}\Bigl[ k(s_3-s_1) + k_3(s_3-s_1)^3 + b(s_4-s_2) - T_{f,l}(s_2) \Bigr] + d_l(t) \\
 \dot{s}_3 &= s_4 \\
 \dot{s}_4 &= \frac{1}{J_m}\Bigl[ K_t u - k(s_3-s_1) - k_3(s_3-s_1)^3 - b(s_4-s_2) - T_{f,m}(s_4) \Bigr] + d_m(t)
-\end{aligned}
-$$
+\end{aligned}$$
+
 | Symbol | Meaning | Units |
 |--------|---------|-------|
 | $\dot{s}$ | State derivative | varies |
@@ -94,9 +93,13 @@ Full derivation: [model_motor_draftV3.md](model_motor_draftV3.md) §2, [readme_f
 
 **Relative Coordinates & Transmitted Torque**   
 From kinematic coupling and constitutive shaft behaviour:
+
 $$\delta \triangleq \theta_m - \theta_l = s_3 - s_1, \qquad \nu \triangleq \omega_m - \omega_l = s_4 - s_2$$
+
 The elastic-dissipative torque transmitted through the flexible shaft is:
+
 $$\tau_c = k\delta + k_3\delta^3 + b\nu$$
+
 | Symbol | Meaning | Units |
 |--------|---------|-------|
 | $\delta, \nu$ | Shaft twist & relative velocity | rad, rad/s |
@@ -139,9 +142,13 @@ The coupling torque derivative is $\dot{\tau}_c = \frac{b }{J_m}a + \Phi(x)$, wh
 $$\Phi(x) = (k+3k_3\delta^2)\nu - b\left(\frac{1}{J_m}+\frac{1}{J_l}\right)\tau_c - \frac{b}{J_m}T_{f,m} + \frac{b}{J_l}T_{f,l}$$
 
  The backstepping design with motor torque:
+
 $$\boxed{a = \frac{J_m}{b}\left[-\Phi(x) + \dot{\tau}_c^* - c_3 z_3 - \frac{1}{J_l}z_2\right]}$$
+
 For practical actuation, torque is usually realised via motor current $i$:
+
 $$\boxed{i^* = \frac{\tau_m^*}{K_t}}$$
+
 Under ideal current tracking ($K_t i \approx \tau_m^*$=a), the mechanical closed-loop dynamics remain unchanged. But in our model we were mainly focused on how to cope with a lot of nonlinearities, in that case we just showed that we know how to control motor in real life but in our exact example we control straightly torque.
 
 | Symbol | Meaning | Units |
@@ -154,9 +161,13 @@ Under ideal current tracking ($K_t i \approx \tau_m^*$=a), the mechanical closed
 
 ### 3.4 Lyapunov Stability Proof
 Composite Lyapunov candidate:
+
 $$\boxed{\mathcal{V} = \frac{1}{2}z_1^2 + \frac{1}{2}z_2^2 + \frac{1}{2}z_3^2}$$
+
 Derivative under closed-loop dynamics:
+
 $$\dot{\mathcal{V}} = -c_1 z_1^2 - c_2 z_2^2 - c_3 z_3^2 \leq 0$$
+
 Since $\dot{\mathcal{V}}$ is negative definite, $z_1(t), z_2(t), z_3(t) \to 0$ asymptotically. The internal shaft dynamics $b\dot{\delta} + k\delta + k_3\delta^3 = \tau_c$ are input-to-state stable (ISS), guaranteeing bounded twist under bounded control.  
  Not in our case, but in addition about how to cope with current: Current saturation $|i| \leq i_{\max}$ introduces local stability margins but preserves convergence within actuator authority.
 
