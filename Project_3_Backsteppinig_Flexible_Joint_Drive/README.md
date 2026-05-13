@@ -16,13 +16,13 @@ The project includes a 4-DOF nonlinear plant model, nominal backstepping control
 
 The complete derivation of the nonlinear state-space model, possible implementation current-actuator mapping, energy passivity analysis, and recursive backstepping control law with stability proofs is provided in [model_motor_draftV3.md](model_motor_draftV3.md) and [readme_flexible_joint_backstepping_theory_v2.md](readme_flexible_joint_backstepping_theory_v2.md).
 
-**Run Project 3:**
-```bash
-cd Project_3_Backstepping_Flexible_Joint_Drive/src
-python main.py         
+## 1. Usage
+### Requirements
 ```
+pip install numpy scipy matplotlib pygame Pillow
+```
+### Repository structure
 
-🔧 Architecture of Project
 ```
 Project_3_Backstepping_Flexible_Joint_Drive/
 ├── src/
@@ -38,8 +38,145 @@ Project_3_Backstepping_Flexible_Joint_Drive/
 ├── readme_flexible_joint_backstepping_theory_v2.md # control law, current actuation & Lyapunov proofs
 └── README.md
 ```
+All commands are run from the `src/` directory:
 
-## 1. System Description & Symbol Dictionary
+```bash
+cd src
+python main.py [--scenario SCENARIO] [plot flags] [--t_end T] [--animate] [--gif]
+```
+
+---
+
+### Scenarios
+
+The `--scenario` flag selects what to simulate and which controllers to run.
+
+| Scenario | Description |
+|---|---|
+| `equilibrium` | Backstepping stabilises from a perturbed initial condition to $\theta^\ast = 1\,\text{rad}$ — the scenario covered by the Lyapunov proof *(default)* |
+| `step` | Backstepping tracks a smooth sigmoid step reference |
+| `sin` | Backstepping tracks a sinusoidal reference at 0.4 Hz |
+| `ctrl_compare` | Backstepping vs PD vs PID on a smooth step trajectory |
+| `ctrl_compare_eq` | Backstepping vs PD vs PID on the equilibrium scenario |
+
+---
+
+### Plot flags
+
+Each flag produces one figure saved to `figures/` with the scenario name as a prefix.
+
+| Flag | Output file | Contents |
+|---|---|---|
+| `--plots` | `<scenario>_states.png` | Angular positions, velocities, coupling torque, control input, tracking errors — full simulation horizon |
+| `--tail` | `<scenario>_states_tail.png` | Same panels zoomed into the last 1 s — reveals steady-state offsets invisible at full scale |
+| `--phase` | `<scenario>_phase_portraits.png` | Load-side $(\theta_l, \omega_l)$ and motor-side $(\theta_m, \omega_m)$ phase portraits, colour encodes time |
+| `--lyapunov` | `<scenario>_lyapunov.png` | Lyapunov function $V(t)$ and $\dot V$ (backstepping only) and total mechanical energy $E(t)$ (all controllers) |
+| `--shaft` | `<scenario>_shaft_dynamics.png` | Shaft twist $\Delta\theta$, relative velocity $\Delta\omega$, elastic potential $E_s$, internal phase portrait |
+| `--all` | all of the above | Shorthand for `--plots --tail --phase --lyapunov --shaft` |
+
+---
+
+### Animation flags
+
+| Flag | Effect |
+|---|---|
+| `--animate` | Opens an interactive pygame window — motor and load disks rotate in real time, the shaft colour encodes coupling torque, live telemetry and scrolling plots update at the bottom |
+| `--gif` | Renders every frame offline at the correct simulation speed and saves a GIF to `animations/` for each controller in the current scenario. Requires Pillow (`pip install Pillow`) |
+
+Keyboard controls in the interactive window:
+
+| Key | Action |
+|---|---|
+| `Space` | Pause / resume |
+| `←` / `→` | Step one frame |
+| `↑` / `↓` | Double / halve playback speed |
+| `R` | Restart from frame 0 |
+| `Esc` / `Q` | Quit |
+
+---
+
+### Simulation duration
+
+```bash
+python main.py --scenario equilibrium --plots --t_end 15
+```
+
+The default is 10 seconds. Longer runs are useful for checking whether PD/PID steady-state offsets continue to drift.
+
+---
+
+### Common recipes
+
+Reproduce all figures used in this README:
+
+```bash
+python main.py --all --scenario equilibrium --t_end 10
+python main.py --all --scenario ctrl_compare_eq --t_end 10
+```
+
+Generate the comparison GIFs:
+
+```bash
+python main.py --gif --animate --scenario ctrl_compare_eq --t_end 2
+```
+
+Run a quick sanity check (simulation only, no output):
+
+```bash
+python main.py --scenario equilibrium
+```
+
+---
+
+### Tuning controller gains
+
+Gains are set as defaults in `controller.py` and can be overridden programmatically by importing the gain dataclasses:
+
+```python
+from controller import ControllerGains, PDGains, PIDGains
+from simulation import run_simulation
+
+# Backstepping
+r = run_simulation(
+    controller_type="backstepping",
+    ctrl_gains=ControllerGains(k1=5.0, k2=8.0, k3=10.0, k4=15.0),
+    reference="equilibrium",
+    ref_kwargs={"setpoint": 1.0},
+)
+
+# PD
+r = run_simulation(
+    controller_type="pd",
+    pd_gains=PDGains(Kp=10.0, Kd=3.0),
+    reference="equilibrium",
+    ref_kwargs={"setpoint": 1.0},
+)
+
+# PID
+r = run_simulation(
+    controller_type="pid",
+    pid_gains=PIDGains(Kp=10.0, Ki=1.0, Kd=3.0),
+    reference="equilibrium",
+    ref_kwargs={"setpoint": 1.0},
+)
+```
+
+Default gains used in this project:
+
+| Controller | Parameter | Value |
+|---|---|---|
+| Backstepping | $k_1$ | 5.0 |
+| | $k_2$ | 8.0 |
+| | $k_3$ | 10.0 |
+| | $k_4$ | 15.0 |
+| PD | $K_p$ | 10.0 |
+| | $K_d$ | 3.0 |
+| PID | $K_p$ | 10.0 |
+| | $K_i$ | 1.0 |
+| | $K_d$ | 3.0 |
+
+
+## 2. System Description & Symbol Dictionary
 Full mathematical derivation: [model_motor_draftV3.md](model_motor_draftV3.md) §1-2, [readme_flexible_joint_backstepping_theory_v2.md](readme_flexible_joint_backstepping_theory_v2.md) §1
 
 *Scheme with meanings only for main idea reference. Description of symbols below.*
@@ -88,7 +225,7 @@ $$\begin{aligned}
 | $d_l, d_m$ | Bounded acceleration disturbances | rad/s² |
 | $K_t$ | Motor torque constant | N·m/A |
 
-## 2. Nonlinear Coupling & Friction Model
+## 3. Nonlinear Coupling & Friction Model
 Full derivation: [model_motor_draftV3.md](model_motor_draftV3.md) §2, [readme_flexible_joint_backstepping_theory_v2.md](readme_flexible_joint_backstepping_theory_v2.md) §1-4
 
 **Relative Coordinates & Transmitted Torque**   
@@ -121,10 +258,10 @@ $$T_f(\omega) = F_c \tanh\left(\frac{\omega}{v_s}\right) + B_v \omega$$
 
 The $\tanh(\cdot)$ function is $C^\infty$ everywhere, with derivative $\frac{d}{d\omega}T_f = \frac{F_c}{v_s}sech^2(\omega/v_s) + B_v$. This guarantees smooth recursive backstepping differentiation and avoids Filippov nonsmooth analysis. Near zero velocity, $T_f(\omega) \approx (F_c/v_s + B_v)\omega$, acting as enhanced viscous damping.
 
-## 3. Control Strategy & Lyapunov Proofs
+## 4. Control Strategy & Lyapunov Proofs
 Full derivation: [readme_flexible_joint_backstepping_theory_v2.md](readme_flexible_joint_backstepping_theory_v2.md) §7-10, §13
 
-### 3.1 Error Coordinates & Virtual Controls
+### 4.1 Error Coordinates & Virtual Controls
 Define tracking error and first virtual control:
 
 $$z_1 = \theta_l - \theta_d, \quad \alpha_1 = \dot{\theta}_d - c_1 z_1, \quad z_2 = \omega_l - \alpha_1$$
@@ -133,7 +270,7 @@ The load velocity error dynamics:
 
 $$\dot{z}_2 = \frac{1}{J_l}\left(\tau_c - T_{f,l}\right) - \dot{\alpha}_1$$
 
-### 3.2 Desired Coupling Torque 
+### 4.2 Desired Coupling Torque 
 Treat $\tau_c$ as intermediate virtual control. Choose:
 
 $$\tau_c^* = J_l\left(\dot{\alpha}_1 - c_2 z_2 - z_1\right) + T_{f,l}$$
@@ -142,7 +279,7 @@ Define torque tracking error: $z_3 = \tau_c - \tau_c^*$. Then:
 
 $$\dot{z}_2 = -c_2 z_2 - z_1 + \frac{1}{J_l}z_3$$
 
-### 3.3 Final Backstepping Law & Current Mapping 
+### 4.3 Final Backstepping Law & Current Mapping 
 The coupling torque derivative is $\dot{\tau}_c = \frac{b }{J_m}a + \Phi(x)$, where $\Phi(x)$ contains known nonlinearities and:     
 
 $$\Phi(x) = (k+3k_3\delta^2)\nu - b\left(\frac{1}{J_m}+\frac{1}{J_l}\right)\tau_c - \frac{b}{J_m}T_{f,m} + \frac{b}{J_l}T_{f,l}$$
@@ -165,7 +302,7 @@ Under ideal current tracking ($K_t i \approx \tau_m^*$=a), the mechanical closed
 | $\tau_c^*$ | Desired elastic torque | N·m |
 | $K_t$ | Torque constant | N·m/A |
 
-### 3.4 Lyapunov Stability Proof
+### 4.4 Lyapunov Stability Proof
 Composite Lyapunov candidate:
 
 $$\boxed{\mathcal{V} = \frac{1}{2}z_1^2 + \frac{1}{2}z_2^2 + \frac{1}{2}z_3^2}$$
@@ -177,7 +314,7 @@ $$\dot{\mathcal{V}} = -c_1 z_1^2 - c_2 z_2^2 - c_3 z_3^2 \leq 0$$
 Since $\dot{\mathcal{V}}$ is negative definite, $z_1(t), z_2(t), z_3(t) \to 0$ asymptotically. The internal shaft dynamics $b\dot{\delta} + k\delta + k_3\delta^3 = \tau_c$ are input-to-state stable (ISS), guaranteeing bounded twist under bounded control.  
  Not in our case, but in addition about how to cope with current: Current saturation $|i| \leq i_{\max}$ introduces local stability margins but preserves convergence within actuator authority.
 
-## 4. Parameters Reference
+## 5. Parameters Reference
 Source: [model_motor_draftV3.md](model_motor_draftV3.md) §7, [readme_flexible_joint_backstepping_theory_v2.md](readme_flexible_joint_backstepping_theory_v2.md) §13
 
 **System Parameters (Lab-Scale Flexible Joint)**
@@ -204,7 +341,7 @@ Source: [model_motor_draftV3.md](model_motor_draftV3.md) §7, [readme_flexible_j
 | $\theta_d(t)$ | – | rad | Reference trajectory (step/sinusoid) |
 | $f_{\text{filter}}$ | 40 | Hz | Command filter cutoff for $\dot{\tau}_c^*$ |
 
-## 5. Additional interaction control
+## 6. Additional interaction control
 Interactive Pygame Controls:
 | Key | Action | Key | Action |
 |-----|--------|-----|--------|
@@ -227,7 +364,7 @@ Here is a revised version:
 
 ---
 
-## 6. Results
+## 7. Results
 
 ### Backstepping
 

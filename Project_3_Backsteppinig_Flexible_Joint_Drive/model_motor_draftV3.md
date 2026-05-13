@@ -76,9 +76,9 @@ $$\dot{\omega}_m = \frac{1}{J_m}\left[ u - \tau_c - T_{f,m} \right] + d_m(t)$$
 Substituting the coupling and friction expressions into the kinematic and dynamic relations gives the complete nonlinear vector field:
 
 $$\begin{aligned}
-\dot{x}_1 &= x_2 \\ [4pt]
-\dot{x}_2 &= \frac{1}{J_l}\Bigl[ k(x_3-x_1) + k_3(x_3-x_1)^3 + b(x_4-x_2) - T_{f,l}(x_2) \Bigr] + d_l(t) \\ [4pt]
-\dot{x}_3 &= x_4 \\ [4pt]
+\dot{x}_1 &= x_2 \\ 
+\dot{x}_2 &= \frac{1}{J_l}\Bigl[ k(x_3-x_1) + k_3(x_3-x_1)^3 + b(x_4-x_2) - T_{f,l}(x_2) \Bigr] + d_l(t) \\ 
+\dot{x}_3 &= x_4 \\
 \dot{x}_4 &= \frac{1}{J_m}\Bigl[ u - k(x_3-x_1) - k_3(x_3-x_1)^3 - b(x_4-x_2) - T_{f,m}(x_4) \Bigr] + d_m(t)
 \end{aligned}$$
 
@@ -90,7 +90,7 @@ $$\begin{aligned}
 The system is **input-affine**: $u$ appears linearly only in $\dot{x}_4$. The drift vector field $f(x)$ consists of polynomial stiffness terms and $C^\infty$ friction terms, making $f(x)$ **locally Lipschitz** on $\mathbb{R}^4$. For bounded $u(t)$ and finite initial energy, solutions are forward-complete (no finite-time escape) due to the radially unbounded elastic potential $U(\delta)$. While the cubic term prevents global Lipschitz continuity, the energy inequality $\dot{E} \le \omega_m u + c_1 E + c_2$ guarantees that states remain bounded over finite horizons under physically realistic actuator limits.
 
 ### 3.2 Cascade Structure & Backstepping Compatibility
-In the original coordinates, $\dot{x}_2$ depends on both $x_3$ and $x_4$ through $\tau_c$, breaking the strict triangular form $\dot{x}_i = f_i(x_{1:i}) + g_i x_{i+1}$. However, by introducing the **transmitted torque** $\tau_c$ as an intermediate virtual control variable, the dynamics reveal a recursive cascade:
+In the original coordinates, $\dot x_2$ depends on both $x_3$ and $x_4$ through $\tau_c$, breaking the strict triangular form $\dot x_i = f_i(x_{1:i}) + g_i x_{i+1}$. However, by introducing the **transmitted torque** $\tau_c$ as an intermediate virtual control variable, the dynamics reveal a recursive cascade:
 
 $$\begin{aligned}
 \dot{x}_1 &= x_2 \\
