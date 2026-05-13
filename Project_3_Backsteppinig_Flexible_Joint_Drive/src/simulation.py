@@ -304,16 +304,18 @@ def run_controller_comparison(
         base_kwargs: dict | None = None,
         t_end: float = 10.0,
         use_equilibrium: bool = False,
+        use_sinusoidal: bool = False,
 ) -> list[SimResult]:
     """
     Run backstepping, PD, and PID on the same scenario.
 
     Parameters
     ----------
-    base_kwargs     : shared kwargs (sys_params, reference, ref_kwargs, u_clip, x0, dt)
-    t_end           : simulation end time [s]
-    use_equilibrium : if True, use constant-setpoint reference (Lyapunov scenario)
-                      instead of the smooth-step trajectory
+    base_kwargs      : shared kwargs (sys_params, reference, ref_kwargs, u_clip, x0, dt)
+    t_end            : simulation end time [s]
+    use_equilibrium  : constant-setpoint reference (Lyapunov scenario)
+    use_sinusoidal   : sinusoidal tracking reference
+    If neither flag is set the default is a smooth step trajectory.
     """
     kw = dict(base_kwargs or {})
     kw.setdefault("t_span",  (0.0, t_end))
@@ -324,6 +326,9 @@ def run_controller_comparison(
         kw.setdefault("reference",  "equilibrium")
         kw.setdefault("ref_kwargs", {"setpoint": 1.0})
         kw.setdefault("x0",         np.array([0.0, 0.5, 0.3, 0.0]))
+    elif use_sinusoidal:
+        kw.setdefault("reference",  "sinusoidal")
+        kw.setdefault("ref_kwargs", {"amplitude": 0.8, "frequency": 0.4})
     else:
         kw.setdefault("reference",  "smooth_step")
 

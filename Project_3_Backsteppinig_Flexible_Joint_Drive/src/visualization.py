@@ -251,8 +251,10 @@ def _draw_state_panels(axes: list, sorted_r: list[SimResult],
                      linestyle="--", label=fr"$e_2$  [{r.label}]")
         axes[4].axhline(0, color=PALETTE["grid"], lw=0.8, linestyle="--")
 
-        axes[5].plot(t, e3, color=pc, lw=lw, alpha=alp,
-                     label=fr"$e_3$  [{r.label}]")
+        # e3 is the backstepping torque error — meaningless for PD/PID
+        if not _is_linear(r):
+            axes[5].plot(t, e3, color=pc, lw=lw, alpha=alp,
+                         label=fr"$e_3$  [{r.label}]")
         axes[5].axhline(0, color=PALETTE["grid"], lw=0.8, linestyle="--")
 
     titles = [
@@ -261,7 +263,7 @@ def _draw_state_panels(axes: list, sorted_r: list[SimResult],
         r"Coupling Torque $\tau_c$  [N$\cdot$m]",
         r"Motor Torque Command $u$  [N$\cdot$m]",
         r"Tracking Errors $e_1$, $e_2$",
-        r"Torque / Integral Error $e_3$",
+        r"Backstepping Torque Error $e_3$  (backstepping only)",
     ]
     ylabels = [
         r"angle $\theta$ [rad]",   r"velocity $\omega$ [rad/s]",
@@ -429,6 +431,12 @@ def plot_phase_portraits(results: list[SimResult],
     _save(fig, filename)
 
 
+def _is_linear(r: SimResult) -> bool:
+    """True for PD and PID results — False for backstepping and unknowns."""
+    lbl = r.label.lower()
+    return _match_ctrl(lbl, "pd") or _match_ctrl(lbl, "pid")
+
+
 # ──────────────────────────────────────────────────────────────────────
 # 3 · Lyapunov & energy
 # ──────────────────────────────────────────────────────────────────────
@@ -448,10 +456,6 @@ def plot_lyapunov(results: list[SimResult],
     fig, axes = plt.subplots(3, 1, figsize=(12, 10), sharex=True)
     _apply_dark_style(fig, axes)
     fig.subplots_adjust(hspace=0.45)
-
-    def _is_linear(r: SimResult) -> bool:
-        lbl = r.label.lower()
-        return _match_ctrl(lbl, "pd") or _match_ctrl(lbl, "pid")
 
     for idx, r in enumerate(sorted_r):
         t   = r.t

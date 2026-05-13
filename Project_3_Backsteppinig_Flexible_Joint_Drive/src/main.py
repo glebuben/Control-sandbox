@@ -105,16 +105,24 @@ def build_sin(t_end: float):
     )
 
 
-def build_ctrl_compare(t_end: float, equilibrium: bool = False):
-    tag = "equilibrium" if equilibrium else "step"
+def build_ctrl_compare(t_end: float, equilibrium: bool = False,
+                       sinusoidal: bool = False):
+    if equilibrium:
+        tag = "equilibrium"
+    elif sinusoidal:
+        tag = "sinusoidal"
+    else:
+        tag = "step"
     print(f"  Running controller comparison [{tag}]  PD / PID / Backstepping …")
     return run_controller_comparison(
         base_kwargs     = dict(**_base(t_end),
                                ref_kwargs={"setpoint": 1.0} if equilibrium
-                                          else STEP_REF_KWARGS,
+                                          else (SIN_REF_KWARGS if sinusoidal
+                                                else STEP_REF_KWARGS),
                                x0=EQUIL_X0.copy() if equilibrium else None),
         t_end           = t_end,
         use_equilibrium = equilibrium,
+        use_sinusoidal  = sinusoidal,
     )
 
 
@@ -167,19 +175,20 @@ def main():
     parser.add_argument(
         "--scenario",
         choices=["equilibrium", "step", "sin",
-                 "ctrl_compare", "ctrl_compare_eq"],
+                 "ctrl_compare", "ctrl_compare_eq", "ctrl_compare_sin"],
         default="equilibrium",
         help=(
-            "equilibrium    – backstepping to constant setpoint (Lyapunov proof scenario)\n"
-            "step           – backstepping tracking smooth step trajectory\n"
-            "sin            – backstepping sinusoidal tracking\n"
-            "ctrl_compare   – Backstepping vs PD vs PID on smooth-step\n"
-            "ctrl_compare_eq– Backstepping vs PD vs PID on equilibrium"
+            "equilibrium       – backstepping to constant setpoint (Lyapunov proof scenario)\n"
+            "step              – backstepping tracking smooth step trajectory\n"
+            "sin               – backstepping sinusoidal tracking\n"
+            "ctrl_compare      – Backstepping vs PD vs PID on smooth-step\n"
+            "ctrl_compare_eq   – Backstepping vs PD vs PID on equilibrium\n"
+            "ctrl_compare_sin  – Backstepping vs PD vs PID on sinusoidal reference"
         ),
     )
 
-    parser.add_argument("--t_end", type=float, default=2.0,
-                        help="Simulation end time [s]  (default: 2.0)")
+    parser.add_argument("--t_end", type=float, default=10.0,
+                        help="Simulation end time [s]  (default: 10.0)")
 
     args = parser.parse_args()
 
@@ -205,6 +214,8 @@ def main():
         results.extend(build_ctrl_compare(args.t_end, equilibrium=False))
     elif args.scenario == "ctrl_compare_eq":
         results.extend(build_ctrl_compare(args.t_end, equilibrium=True))
+    elif args.scenario == "ctrl_compare_sin":
+        results.extend(build_ctrl_compare(args.t_end, sinusoidal=True))
 
     print(f"\n  Simulation(s) completed in {time.perf_counter()-t0:.2f} s")
     print_summary(results)
