@@ -90,7 +90,7 @@ $$T_f(\omega) = F_c\tanh\!\left(\frac{\omega}{v_s}\right) + B_v\,\omega.$$
 | $v_s$ | smoothing velocity threshold | rad/s |
 | $B_v$ | viscous friction coefficient | N·m·s/rad |
 
-This is not a full static-friction/stick-slip model. It is a smooth approximation of Coulomb plus viscous friction. The main reason for using $\tanh(\cdot)$ instead of $\operatorname{sign}(\cdot)$ is that the hyperbolic tangent is differentiable everywhere, which makes Lyapunov and backstepping derivations much cleaner.
+This is not a full static-friction/stick-slip model. It is a smooth approximation of Coulomb plus viscous friction. The main reason for using $\tanh(\cdot)$ instead of $\mathrm{sign}(\cdot)$ is that the hyperbolic tangent is differentiable everywhere, which makes Lyapunov and backstepping derivations much cleaner.
 
 ---
 
@@ -176,9 +176,9 @@ Thus, the spring part of the coupling torque is the gradient of the potential en
 
 Classical Coulomb-viscous friction is often written as
 
-$$T_f(\omega) = F_c\operatorname{sign}(\omega) + B_v\,\omega.$$
+$$T_f(\omega) = F_c\mathrm{sign}(\omega) + B_v\,\omega.$$
 
-The difficulty is that $\operatorname{sign}(\omega)$ is discontinuous at $\omega = 0$. This can make the closed-loop vector field discontinuous and may require nonsmooth analysis, for example Filippov solutions.
+The difficulty is that $\mathrm{sign}(\omega)$ is discontinuous at $\omega = 0$. This can make the closed-loop vector field discontinuous and may require nonsmooth analysis, for example Filippov solutions.
 
 Instead, we use
 
@@ -192,7 +192,7 @@ and
 
 $$\tanh(z) \to -1 \quad \text{as} \quad z \to -\infty,$$
 
-$\tanh(\omega/v_s)$ behaves like a smooth version of $\operatorname{sign}(\omega)$.
+$\tanh(\omega/v_s)$ behaves like a smooth version of $\mathrm{sign}(\omega)$.
 
 ---
 
@@ -200,13 +200,13 @@ $\tanh(\omega/v_s)$ behaves like a smooth version of $\operatorname{sign}(\omega
 
 The function $\tanh(z)$ is analytic for all real $z$. Therefore, $\tanh(\omega/v_s)$ is smooth for every $v_s > 0$. Its derivative is
 
-$$\frac{d}{d\omega}\tanh\!\left(\frac{\omega}{v_s}\right) = \frac{1}{v_s}\operatorname{sech}^2\!\left(\frac{\omega}{v_s}\right).$$
+$$\frac{d}{d\omega}\tanh\!\left(\frac{\omega}{v_s}\right) = \frac{1}{v_s}\mathrm{sech}^2\!\left(\frac{\omega}{v_s}\right).$$
 
 Therefore,
 
-$$\frac{dT_f}{d\omega} = \frac{F_c}{v_s}\operatorname{sech}^2\!\left(\frac{\omega}{v_s}\right) + B_v.$$
+$$\frac{dT_f}{d\omega} = \frac{F_c}{v_s}\mathrm{sech}^2\!\left(\frac{\omega}{v_s}\right) + B_v.$$
 
-Since $\operatorname{sech}^2(z)$ is continuous and bounded, $T_f(\omega)$ is continuously differentiable. In fact, because $\tanh(z)$ is analytic, $T_f \in C^\infty$.
+Since $\mathrm{sech}^2(z)$ is continuous and bounded, $T_f(\omega)$ is continuously differentiable. In fact, because $\tanh(z)$ is analytic, $T_f \in C^\infty$.
 
 This is exactly why the model is convenient for backstepping: all derivatives required in the recursive Lyapunov design exist and are continuous.
 
@@ -635,7 +635,7 @@ In practice, exact differentiation is usually avoided. Alternatives include comm
 
 ### 14.2 Torque Saturation
 
-Real motors have torque limits $|u| \le u_{\max}$. A practical saturated input is $u_{\text{sat}} = \operatorname{sat}(u,\, u_{\max})$. The Lyapunov proof then becomes local or semi-global rather than global.
+Real motors have torque limits $|u| \le u_{\max}$. A practical saturated input is $u_{\text{sat}} = \mathrm{sat}(u,\, u_{\max})$. The Lyapunov proof then becomes local or semi-global rather than global.
 
 ### 14.3 Parameter Uncertainty
 
@@ -645,7 +645,7 @@ The nominal controller assumes known parameters: $J_l,\, J_m,\, k,\, k_3,\, b,\,
 
 ## 15. Final Theoretical Summary
 
-The proposed flexible-joint model is a nonlinear, input-affine, non-collocated mechanical system. Its main nonlinearities are the cubic torsional stiffness and smooth Coulomb-viscous friction. The use of $\tanh(\cdot)$ instead of $\operatorname{sign}(\cdot)$ preserves differentiability and avoids discontinuous vector fields.
+The proposed flexible-joint model is a nonlinear, input-affine, non-collocated mechanical system. Its main nonlinearities are the cubic torsional stiffness and smooth Coulomb-viscous friction. The use of $\tanh(\cdot)$ instead of $\mathrm{sign}(\cdot)$ preserves differentiability and avoids discontinuous vector fields.
 
 The system has a natural energy structure. The nominal plant is passive from motor torque to motor velocity.
 
