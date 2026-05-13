@@ -119,21 +119,27 @@ $$T_f(\omega) = F_c \tanh\left(\frac{\omega}{v_s}\right) + B_v \omega$$
 | $v_s$ | Stribeck smoothing threshold | rad/s |
 | $B_v$ | Viscous friction coefficient | N·m·s/rad |
 
-The $\tanh(\cdot)$ function is $C^\infty$ everywhere, with derivative $\frac{d}{d\omega}T_f = \frac{F_c}{v_s}\operatorname{sech}^2(\omega/v_s) + B_v$. This guarantees smooth recursive backstepping differentiation and avoids Filippov nonsmooth analysis. Near zero velocity, $T_f(\omega) \approx (F_c/v_s + B_v)\omega$, acting as enhanced viscous damping.
+The $\tanh(\cdot)$ function is $C^\infty$ everywhere, with derivative $\frac{d}{d\omega}T_f = \frac{F_c}{v_s}sech^2(\omega/v_s) + B_v$. This guarantees smooth recursive backstepping differentiation and avoids Filippov nonsmooth analysis. Near zero velocity, $T_f(\omega) \approx (F_c/v_s + B_v)\omega$, acting as enhanced viscous damping.
 
 ## 3. Control Strategy & Lyapunov Proofs
 Full derivation: [readme_flexible_joint_backstepping_theory_v2.md](readme_flexible_joint_backstepping_theory_v2.md) §7-10, §13
 
 ### 3.1 Error Coordinates & Virtual Controls
 Define tracking error and first virtual control:
+
 $$z_1 = \theta_l - \theta_d, \quad \alpha_1 = \dot{\theta}_d - c_1 z_1, \quad z_2 = \omega_l - \alpha_1$$
+
 The load velocity error dynamics:
+
 $$\dot{z}_2 = \frac{1}{J_l}\left(\tau_c - T_{f,l}\right) - \dot{\alpha}_1$$
 
 ### 3.2 Desired Coupling Torque 
 Treat $\tau_c$ as intermediate virtual control. Choose:
+
 $$\tau_c^* = J_l\left(\dot{\alpha}_1 - c_2 z_2 - z_1\right) + T_{f,l}$$
+
 Define torque tracking error: $z_3 = \tau_c - \tau_c^*$. Then:
+
 $$\dot{z}_2 = -c_2 z_2 - z_1 + \frac{1}{J_l}z_3$$
 
 ### 3.3 Final Backstepping Law & Current Mapping 

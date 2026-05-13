@@ -47,7 +47,7 @@ The corresponding elastic potential energy is $U(\delta) = \frac{1}{2}k\delta^2 
 ### 2.2 Smooth Friction Approximation
 Bearing and gear friction on both inertias is modeled using a smooth Coulomb-viscous approximation:
 
-$$T_{f}(\omega) = F_c \tanh\!\left(\frac{\omega}{v_s}\right) + B_v \omega$$
+$$T_{f}(\omega) = F_c \tanh \left(\frac{\omega}{v_s}\right) + B_v \omega$$
 
 | Parameter | Meaning | Units |
 |:---|:---|:---|
@@ -56,7 +56,7 @@ $$T_{f}(\omega) = F_c \tanh\!\left(\frac{\omega}{v_s}\right) + B_v \omega$$
 | $B_v \ge 0$ | Viscous friction coefficient | N·m·s/rad |
 
 **Why $\tanh(\cdot)$?**  
-The hyperbolic tangent is analytic ($C^\infty$) everywhere, unlike the discontinuous $\operatorname{sign}(\omega)$. Its derivative $\frac{d}{d\omega}\tanh(\omega/v_s) = \frac{1}{v_s}\operatorname{sech}^2(\omega/v_s)$ exists globally, which is essential for recursive Lyapunov/backstepping differentiation and avoids nonsmooth Filippov analysis. Near zero velocity, $\tanh(\omega/v_s) \approx \omega/v_s$, so the friction behaves as an additional viscous damping term $B_{\text{eff}} = F_c/v_s + B_v$, ensuring smooth small-signal dynamics.
+The hyperbolic tangent is analytic ($C^\infty$) everywhere, unlike the discontinuous $sign(\omega)$. Its derivative $\frac{d}{d\omega}\tanh(\omega/v_s) = \frac{1}{v_s}sech^2(\omega/v_s)$ exists globally, which is essential for recursive Lyapunov/backstepping differentiation and avoids nonsmooth Filippov analysis. Near zero velocity, $\tanh(\omega/v_s) \approx \omega/v_s$, so the friction behaves as an additional viscous damping term $B_{\text{eff}} = F_c/v_s + B_v$, ensuring smooth small-signal dynamics.
 
 ### 2.3 Newton–Euler Equations
 Applying rotational dynamics to each inertia yields:
@@ -76,9 +76,9 @@ $$\dot{\omega}_m = \frac{1}{J_m}\left[ u - \tau_c - T_{f,m} \right] + d_m(t)$$
 Substituting the coupling and friction expressions into the kinematic and dynamic relations gives the complete nonlinear vector field:
 
 $$\begin{aligned}
-\dot{x}_1 &= x_2 \\[4pt]
-\dot{x}_2 &= \frac{1}{J_l}\Bigl[ k(x_3-x_1) + k_3(x_3-x_1)^3 + b(x_4-x_2) - T_{f,l}(x_2) \Bigr] + d_l(t) \\[4pt]
-\dot{x}_3 &= x_4 \\[4pt]
+\dot{x}_1 &= x_2 \\ [4pt]
+\dot{x}_2 &= \frac{1}{J_l}\Bigl[ k(x_3-x_1) + k_3(x_3-x_1)^3 + b(x_4-x_2) - T_{f,l}(x_2) \Bigr] + d_l(t) \\ [4pt]
+\dot{x}_3 &= x_4 \\ [4pt]
 \dot{x}_4 &= \frac{1}{J_m}\Bigl[ u - k(x_3-x_1) - k_3(x_3-x_1)^3 - b(x_4-x_2) - T_{f,m}(x_4) \Bigr] + d_m(t)
 \end{aligned}$$
 
@@ -98,7 +98,7 @@ $$\begin{aligned}
 \dot{\tau}_c &= \frac{b}{J_m}u + \Phi(x) \quad \text{(where $\Phi(x)$ contains known nonlinearities)}
 \end{aligned}$$
 
-This structure enables **torque-shaped backstepping**: stabilize position error → shape desired load velocity → shape desired coupling torque $\tau_c^*$ → synthesize motor torque $u$ to track $\tau_c^*$. The cubic stiffness mapping $\delta \mapsto k\delta + k_3\delta^3$ is strictly monotonic for $k_3 \ge 0$, guaranteeing a unique inverse for computing the required shaft twist $\delta_d$. The recursive Lyapunov design explicitly shapes the elastic potential and damping distribution, guaranteeing asymptotic tracking without linearization or gain scheduling.
+This structure enables **torque-shaped backstepping**: stabilize position error → shape desired load velocity → shape desired coupling torque $\tau_c^\ast$ → synthesize motor torque $u$ to track $\tau_c^\ast$. The cubic stiffness mapping $\delta \mapsto k\delta + k_3\delta^3$ is strictly monotonic for $k_3 \geq 0$, guaranteeing a unique inverse for computing the required shaft twist $\delta_d$. The recursive Lyapunov design explicitly shapes the elastic potential and damping distribution, guaranteeing asymptotic tracking without linearization or gain scheduling.
 
 ### 3.3 Energy & Passivity Characteristics
 Define the total mechanical energy:
@@ -134,7 +134,7 @@ This proves the plant is **passive** from motor torque $u$ to motor velocity $\o
 ```
 
 **Mapping to the mathematical model:**  
-The physical architecture directly dictates the cascade structure of the differential equations. The motor inertia ($J_m$) receives the electromagnetic torque $u$ and converts it into angular acceleration $\dot{\omega}_m$. This acceleration is opposed by two forces: the transmitted coupling torque $\tau_c$ and motor-side friction $T_{f,m}$. The coupling acts as a torsional spring-damper, storing energy elastically ($k\delta + k_3\delta^3$) and dissipating it viscoelastically ($b\nu$). Crucially, $\tau_c$ depends on the *relative* displacement and velocity between motor and load, which creates the cross-coupling terms $(x_3-x_1)$ and $(x_4-x_2)$ in the state equations. The load inertia ($J_l$) is not directly actuated; it only responds to $\tau_c$ minus load-side friction. This **non-collocated actuation** means the control input $u$ must travel through the flexible element to influence the controlled output $\theta_l$, introducing a resonance pair that shifts with amplitude due to $k_3$. The smooth $\tanh(\cdot)$ friction models the transition from static/dry friction near zero speed to velocity-proportional losses at higher speeds, avoiding discontinuities that would break Lyapunov differentiation. Backstepping exploits this energy flow by treating $\tau_c$ as a virtual control: the controller first computes the exact elastic torque needed to stabilize $\theta_l$, then determines the required shaft twist $\delta_d$, and finally synthesizes $u$ to drive the physical coupling toward that torque while damping relative oscillations. This preserves the physical energy constraints and guarantees global tracking without linearizing the plant.
+The physical architecture directly dictates the cascade structure of the differential equations. The motor inertia ($J_m$) receives the electromagnetic torque $u$ and converts it into angular acceleration $\dot\omega_m$. This acceleration is opposed by two forces: the transmitted coupling torque $\tau_c$ and motor-side friction $T_{f,m}$. The coupling acts as a torsional spring-damper, storing energy elastically ($k\delta + k_3\delta^3$) and dissipating it viscoelastically ($b\nu$). Crucially, $\tau_c$ depends on the *relative* displacement and velocity between motor and load, which creates the cross-coupling terms $(x_3-x_1)$ and $(x_4-x_2)$ in the state equations. The load inertia ($J_l$) is not directly actuated; it only responds to $\tau_c$ minus load-side friction. This **non-collocated actuation** means the control input $u$ must travel through the flexible element to influence the controlled output $\theta_l$, introducing a resonance pair that shifts with amplitude due to $k_3$. The smooth $\tanh(\cdot)$ friction models the transition from static/dry friction near zero speed to velocity-proportional losses at higher speeds, avoiding discontinuities that would break Lyapunov differentiation. Backstepping exploits this energy flow by treating $\tau_c$ as a virtual control: the controller first computes the exact elastic torque needed to stabilize $\theta_l$, then determines the required shaft twist $\delta_d$, and finally synthesizes $u$ to drive the physical coupling toward that torque while damping relative oscillations. This preserves the physical energy constraints and guarantees global tracking without linearizing the plant.
 
 ---
 
