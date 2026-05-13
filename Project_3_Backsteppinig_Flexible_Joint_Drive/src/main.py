@@ -32,7 +32,8 @@ from controller    import ControllerGains
 from simulation    import (run_simulation,
                            run_equilibrium_stabilisation,
                            run_controller_comparison)
-from visualization import (plot_states, plot_phase_portraits,
+from visualization import (plot_states, plot_states_tail,
+                            plot_phase_portraits,
                             plot_lyapunov, plot_shaft_dynamics,
                             generate_all_plots, create_animation)
 
@@ -147,7 +148,9 @@ def main():
     )
 
     parser.add_argument("--plots",    action="store_true",
-                        help="Time-domain state & error plots")
+                        help="Time-domain state & error plots (full horizon)")
+    parser.add_argument("--tail",     action="store_true",
+                        help="Steady-state detail plots (last 1 s, auto-scales y-axis)")
     parser.add_argument("--phase",    action="store_true",
                         help="Phase portraits")
     parser.add_argument("--lyapunov", action="store_true",
@@ -175,15 +178,15 @@ def main():
         ),
     )
 
-    parser.add_argument("--t_end", type=float, default=10.0,
-                        help="Simulation end time [s]  (default: 10.0)")
+    parser.add_argument("--t_end", type=float, default=2.0,
+                        help="Simulation end time [s]  (default: 2.0)")
 
     args = parser.parse_args()
 
     if args.all:
-        args.plots = args.phase = args.lyapunov = args.shaft = True
+        args.plots = args.tail = args.phase = args.lyapunov = args.shaft = True
 
-    any_plot = args.plots or args.phase or args.lyapunov or args.shaft
+    any_plot = args.plots or args.tail or args.phase or args.lyapunov or args.shaft
 
     print("\n" + "="*60)
     print("  Flexible-Joint Drive · Backstepping Simulation")
@@ -211,6 +214,9 @@ def main():
         print("Writing figures to  figures/  …")
         if args.plots:
             plot_states(results, filename=f"{prefix}_states.png")
+
+        if args.tail:
+            plot_states_tail(results, filename=f"{prefix}_states_tail.png")
         if args.phase:
             plot_phase_portraits(results, filename=f"{prefix}_phase_portraits.png")
         if args.lyapunov:

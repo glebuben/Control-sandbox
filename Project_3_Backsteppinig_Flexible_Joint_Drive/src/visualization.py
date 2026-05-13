@@ -74,9 +74,9 @@ _FONT_TICK  = {"labelsize": 8,  "colors": PALETTE["subtext"]}
 # secondary = aux signal   (θ_m, ω_m) drawn dashed, same hue but lighter
 # ref_col   = reference signal θ_d (always green-ish)
 _CTRL_COLORS = {
-    "backstepping": ("#00e5ff",  "#80deea",  "#aed581"),   # cyan family
-    "pd":           ("#ffab40",  "#ffe0b2",  "#c8e6c9"),   # amber family
-    "pid":          ("#ff5252",  "#ff8a80",  "#e8f5e9"),   # red family
+    "backstepping": ("#00e5ff",  "#80deea",  "#aed581"),   # cyan  family
+    "pid":          ("#ff5252",  "#ff8a80",  "#e8f5e9"),   # red   family
+    "pd":           ("#69f0ae",  "#b9f6ca",  "#e8f5e9"),   # green family
 }
 _FALLBACK_COLORS = [
     ("#ce93d8", "#e1bee7", "#aed581"),   # purple
@@ -86,17 +86,29 @@ _FALLBACK_COLORS = [
 
 _PHASE_CMAPS = {
     "backstepping": "cool",
-    "pd":           "autumn",
     "pid":          "hot",
+    "pd":           "summer",   # green → yellow gradient
 }
 _FALLBACK_CMAPS = ["plasma", "viridis", "spring"]
+
+
+def _match_ctrl(lbl: str, key: str) -> bool:
+    """
+    True when label ``lbl`` corresponds to controller ``key``.
+
+    Uses a word-boundary check so "pid" does not match "pd" and vice-versa:
+      - exact match, OR
+      - key appears surrounded by non-alphanumeric characters.
+    """
+    import re
+    return bool(re.search(r'(?<![a-z])' + re.escape(key) + r'(?![a-z])', lbl))
 
 
 def _result_colors(r: SimResult, idx: int) -> tuple[str, str, str]:
     """Return (primary, secondary, ref) hex colours for a SimResult."""
     lbl = r.label.lower()
     for key, triple in _CTRL_COLORS.items():
-        if key in lbl:
+        if _match_ctrl(lbl, key):
             return triple
     return _FALLBACK_COLORS[idx % len(_FALLBACK_COLORS)]
 
@@ -104,7 +116,7 @@ def _result_colors(r: SimResult, idx: int) -> tuple[str, str, str]:
 def _result_cmap(r: SimResult, idx: int) -> str:
     lbl = r.label.lower()
     for key, cm in _PHASE_CMAPS.items():
-        if key in lbl:
+        if _match_ctrl(lbl, key):
             return cm
     return _FALLBACK_CMAPS[idx % len(_FALLBACK_CMAPS)]
 
@@ -171,62 +183,75 @@ def _legend(ax):
 # 1 · Time-domain state & error plots
 # ──────────────────────────────────────────────────────────────────────
 
-def plot_states(results: list[SimResult],
-                filename: str = "states.png") -> None:
-    """
-    Six-panel time-domain figure.
-    Results are sorted so backstepping is drawn last (on top).
-    Each controller gets a distinct colour family.
-    """
-    sorted_r = _sort_results(results)
+# ──────────────────────────────────────────────────────────────────────
+# 1 · Time-domain state & error plots
+# ──────────────────────────────────────────────────────────────────────
 
-    fig = plt.figure(figsize=(14, 16))
-    gs  = gridspec.GridSpec(6, 1, hspace=0.55, figure=fig)
-    axes = [fig.add_subplot(gs[i]) for i in range(6)]
-    _apply_dark_style(fig, axes)
+def _draw_state_panels(axes: list, sorted_r: list[SimResult],
+                       t_lo: float | None = None,
+                       t_hi: float | None = None) -> None:
+    """
+    Shared drawing logic for state/error panels.
 
-    ref_drawn = set()   # avoid duplicate θ_d legend entries
+    Parameters
+    ----------
+    axes     : list of 6 Axes (positions, velocities, τ_c, u, e₁e₂, e₃)
+    sorted_r : results already sorted (backstepping last)
+    t_lo     : left time limit for x-axis (None = start of data)
+    t_hi     : right time limit for x-axis (None = end of data)
+    """
+    ref_drawn: set = set()
 
     for idx, r in enumerate(sorted_r):
         t = r.t
+
+        # Slice to requested time window
+        if t_lo is not None or t_hi is not None:
+            lo = t_lo if t_lo is not None else t[0]
+            hi = t_hi if t_hi is not None else t[-1]
+            mask = (t >= lo) & (t <= hi)
+            if mask.sum() < 2:
+                continue
+            t   = t[mask]
+            x   = r.x[mask]
+            e1  = r.e1[mask];  e2  = r.e2[mask];  e3  = r.e3[mask]
+            td  = r.theta_d[mask]
+            tc  = r.tau_c[mask]; u = r.u[mask]
+        else:
+            x   = r.x
+            e1  = r.e1;  e2 = r.e2;  e3 = r.e3
+            td  = r.theta_d
+            tc  = r.tau_c;  u = r.u
+
         pc, sc, rc = _result_colors(r, idx)
         lw  = 2.0 if "backstepping" in r.label.lower() else 1.4
         alp = 1.0 if "backstepping" in r.label.lower() else 0.75
 
-        # ─ positions ─
-        axes[0].plot(t, r.x[:, 0], color=pc, lw=lw, alpha=alp,
+        axes[0].plot(t, x[:, 0], color=pc, lw=lw, alpha=alp,
                      label=fr"$\theta_l$  [{r.label}]")
-        axes[0].plot(t, r.x[:, 2], color=sc, lw=lw, alpha=alp * 0.8,
+        axes[0].plot(t, x[:, 2], color=sc, lw=lw, alpha=alp * 0.8,
                      linestyle="--", label=fr"$\theta_m$  [{r.label}]")
         ref_lbl = r"$\theta_d$ (ref)" if "θ_d" not in ref_drawn else "_nolegend_"
         ref_drawn.add("θ_d")
-        axes[0].plot(t, r.theta_d, color=rc, lw=1.0,
-                     linestyle=":", alpha=0.9, label=ref_lbl)
+        axes[0].plot(t, td, color=rc, lw=1.0, linestyle=":", alpha=0.9, label=ref_lbl)
 
-        # ─ velocities ─
-        axes[1].plot(t, r.x[:, 1], color=pc, lw=lw, alpha=alp,
+        axes[1].plot(t, x[:, 1], color=pc, lw=lw, alpha=alp,
                      label=fr"$\omega_l$  [{r.label}]")
-        axes[1].plot(t, r.x[:, 3], color=sc, lw=lw, alpha=alp * 0.8,
+        axes[1].plot(t, x[:, 3], color=sc, lw=lw, alpha=alp * 0.8,
                      linestyle="--", label=fr"$\omega_m$  [{r.label}]")
 
-        # ─ coupling torque ─
-        axes[2].plot(t, r.tau_c, color=pc, lw=lw, alpha=alp,
-                     label=r.label)
+        axes[2].plot(t, tc, color=pc, lw=lw, alpha=alp, label=r.label)
 
-        # ─ control input ─
-        axes[3].plot(t, r.u, color=pc, lw=lw, alpha=alp,
-                     label=r.label)
+        axes[3].plot(t, u, color=pc, lw=lw, alpha=alp, label=r.label)
         axes[3].axhline(0, color=PALETTE["grid"], lw=0.8, linestyle="--")
 
-        # ─ tracking errors ─
-        axes[4].plot(t, r.e1, color=pc, lw=lw, alpha=alp,
+        axes[4].plot(t, e1, color=pc, lw=lw, alpha=alp,
                      label=fr"$e_1=\theta_l-\theta_d$  [{r.label}]")
-        axes[4].plot(t, r.e2, color=sc, lw=lw, alpha=alp * 0.8,
+        axes[4].plot(t, e2, color=sc, lw=lw, alpha=alp * 0.8,
                      linestyle="--", label=fr"$e_2$  [{r.label}]")
         axes[4].axhline(0, color=PALETTE["grid"], lw=0.8, linestyle="--")
 
-        # ─ torque / integral error ─
-        axes[5].plot(t, r.e3, color=pc, lw=lw, alpha=alp,
+        axes[5].plot(t, e3, color=pc, lw=lw, alpha=alp,
                      label=fr"$e_3$  [{r.label}]")
         axes[5].axhline(0, color=PALETTE["grid"], lw=0.8, linestyle="--")
 
@@ -239,21 +264,71 @@ def plot_states(results: list[SimResult],
         r"Torque / Integral Error $e_3$",
     ]
     ylabels = [
-        r"angle $\theta$ [rad]",
-        r"velocity $\omega$ [rad/s]",
-        r"$\tau_c$ [N$\cdot$m]",
-        r"$u$ [N$\cdot$m]",
-        r"error",
-        r"error",
+        r"angle $\theta$ [rad]",   r"velocity $\omega$ [rad/s]",
+        r"$\tau_c$ [N$\cdot$m]",   r"$u$ [N$\cdot$m]",
+        r"error",                  r"error",
     ]
     for ax, ttl, yl in zip(axes, titles, ylabels):
         ax.set_title(ttl, **_FONT_TITLE)
         _label_xy(ax, "time [s]", yl)
         _legend(ax)
 
+
+def plot_states(results: list[SimResult],
+                filename: str = "states.png") -> None:
+    """
+    Six-panel time-domain figure over the full simulation horizon.
+    Results sorted so backstepping is drawn last (on top).
+    """
+    sorted_r = _sort_results(results)
+    fig = plt.figure(figsize=(14, 16))
+    gs  = gridspec.GridSpec(6, 1, hspace=0.55, figure=fig)
+    axes = [fig.add_subplot(gs[i]) for i in range(6)]
+    _apply_dark_style(fig, axes)
+
+    _draw_state_panels(axes, sorted_r)
+
     fig.suptitle(r"Flexible-Joint Drive — Time Domain Comparison",
                  fontsize=15, fontweight="bold",
                  color=PALETTE["text"], y=1.005)
+    _save(fig, filename)
+
+
+def plot_states_tail(results: list[SimResult],
+                     filename: str = "states_tail.png",
+                     tail_duration: float = 1.0) -> None:
+    """
+    Six-panel time-domain figure zoomed into the LAST ``tail_duration``
+    seconds of the simulation.
+
+    This reveals steady-state behaviour that is invisible in the full
+    plot because the large initial transients compress the y-axis scale.
+    Each panel auto-scales to the zoomed window so small residual errors
+    become clearly visible.
+
+    Parameters
+    ----------
+    tail_duration : width of the time window shown [s]
+    """
+    sorted_r = _sort_results(results)
+
+    # Determine the common time window for all results
+    t_end   = max(float(res.t[-1]) for res in sorted_r)
+    t_start = max(float(sorted_r[0].t[0]), t_end - tail_duration)
+
+    fig = plt.figure(figsize=(14, 16))
+    gs  = gridspec.GridSpec(6, 1, hspace=0.55, figure=fig)
+    axes = [fig.add_subplot(gs[i]) for i in range(6)]
+    _apply_dark_style(fig, axes)
+
+    _draw_state_panels(axes, sorted_r, t_lo=t_start, t_hi=t_end)
+
+    # Shade the zoomed region indicator in the title
+    fig.suptitle(
+        fr"Flexible-Joint Drive — Steady-State Detail  "
+        fr"[$t \in [{t_start:.1f},\,{t_end:.1f}]$ s]",
+        fontsize=15, fontweight="bold",
+        color=PALETTE["text"], y=1.005)
     _save(fig, filename)
 
 
@@ -277,41 +352,76 @@ def plot_phase_portraits(results: list[SimResult],
                          filename: str = "phase_portraits.png") -> None:
     """
     Two-panel phase portrait (load side, motor side).
-    Backstepping plotted last; each controller gets its own colormap.
+
+    Each controller gets its own colourmap.  Within each trajectory the
+    colour encodes time: dark = early, bright = late.  A legend box
+    shows a colourmap sample swatch for each controller so the viewer
+    can identify which trajectory belongs to which controller without
+    relying solely on the IC scatter marker.
     """
+    import matplotlib.patches as mpatches
+    import matplotlib.cm as mcm
+
     sorted_r = _sort_results(results)
 
     fig, axes = plt.subplots(1, 2, figsize=(14, 6))
     _apply_dark_style(fig, axes)
+
+    legend_patches: list[mpatches.Patch] = []
 
     for idx, r in enumerate(sorted_r):
         cm  = _result_cmap(r, idx)
         pc, _, _ = _result_colors(r, idx)
         lw  = 2.0 if "backstepping" in r.label.lower() else 1.4
 
-        lc1 = _colored_line(axes[0], r.x[:, 0], r.x[:, 1], cmap=cm, lw=lw)
-        axes[0].scatter(r.x[0, 0], r.x[0, 1], color="white",
-                        zorder=5, s=40, marker="o", label=fr"IC  [{r.label}]")
+        _colored_line(axes[0], r.x[:, 0], r.x[:, 1], cmap=cm, lw=lw)
+        axes[0].scatter(r.x[0, 0],  r.x[0, 1],  color="white",
+                        zorder=5, s=40, marker="o")
         axes[0].scatter(r.x[-1, 0], r.x[-1, 1], color=pc,
                         zorder=5, s=60, marker="*")
 
         _colored_line(axes[1], r.x[:, 2], r.x[:, 3], cmap=cm, lw=lw)
-        axes[1].scatter(r.x[0, 2], r.x[0, 3], color="white",
-                        zorder=5, s=40, marker="o", label=fr"IC  [{r.label}]")
+        axes[1].scatter(r.x[0, 2],  r.x[0, 3],  color="white",
+                        zorder=5, s=40, marker="o")
         axes[1].scatter(r.x[-1, 2], r.x[-1, 3], color=pc,
                         zorder=5, s=60, marker="*")
 
-    cb = fig.colorbar(lc1, ax=axes[0], pad=0.02)
-    cb.set_label("time step", color=PALETTE["subtext"], fontsize=8)
-    cb.ax.yaxis.set_tick_params(color=PALETTE["subtext"])
-    plt.setp(cb.ax.yaxis.get_ticklabels(), color=PALETTE["subtext"])
+        # Sample the midpoint colour of the colourmap for the legend swatch
+        cmap_obj  = mcm.get_cmap(cm)
+        mid_color = cmap_obj(0.55)   # bright-ish mid tone
+        patch = mpatches.Patch(color=mid_color, label=r.label)
+        legend_patches.append(patch)
 
-    axes[0].set_title(r"Load Phase Portrait  $(\theta_l,\,\omega_l)$", **_FONT_TITLE)
+    # ── Colourmap direction annotation (shared across both panels) ────
+    # A thin horizontal gradient bar below each axis would be ideal but
+    # requires extra axes; instead we annotate with text.
+    for ax in axes:
+        ax.annotate("dark = $t_0$  →  bright = $t_{end}$",
+                    xy=(0.01, 0.02), xycoords="axes fraction",
+                    fontsize=7, color=PALETTE["subtext"],
+                    fontstyle="italic")
+
+    # ── Per-controller legend (patches + IC/final markers) ────────────
+    # Add IC and final-point markers to the patch list
+    ic_patch   = plt.Line2D([0], [0], marker="o", color="w",
+                             markerfacecolor="white", markersize=6,
+                             label="Initial condition", linestyle="None")
+    end_patch  = plt.Line2D([0], [0], marker="*", color="w",
+                             markerfacecolor=PALETTE["accent2"], markersize=8,
+                             label="Final state", linestyle="None")
+    all_handles = legend_patches + [ic_patch, end_patch]
+
+    for ax in axes:
+        ax.legend(handles=all_handles,
+                  fontsize=7, framealpha=0.35,
+                  labelcolor=PALETTE["text"],
+                  facecolor=PALETTE["panel"],
+                  edgecolor=PALETTE["grid"])
+
+    axes[0].set_title(r"Load Phase Portrait  $(\theta_l,\,\omega_l)$",  **_FONT_TITLE)
     axes[1].set_title(r"Motor Phase Portrait  $(\theta_m,\,\omega_m)$", **_FONT_TITLE)
     _label_xy(axes[0], r"$\theta_l$  [rad]", r"$\omega_l$  [rad/s]")
     _label_xy(axes[1], r"$\theta_m$  [rad]", r"$\omega_m$  [rad/s]")
-    for ax in axes:
-        _legend(ax)
 
     fig.suptitle(r"Flexible-Joint Drive — Phase Portraits",
                  fontsize=15, fontweight="bold",
@@ -458,6 +568,8 @@ def generate_all_plots(results: list[SimResult],
     p = f"{prefix}_" if prefix else ""
     print("Generating time-domain state plots …")
     plot_states(results, filename=f"{p}states.png")
+    print("Generating steady-state detail plots …")
+    plot_states_tail(results, filename=f"{p}states_tail.png")
     print("Generating phase portraits …")
     plot_phase_portraits(results, filename=f"{p}phase_portraits.png")
     print("Generating Lyapunov / energy plots …")

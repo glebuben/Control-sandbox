@@ -246,15 +246,15 @@ class BacksteppingController:
 
 @dataclass
 class PDGains:
-    Kp: float = 60.0    # proportional gain on θ_l error
-    Kd: float = 15.0    # derivative gain  on ω_l error
+    Kp: float = 10.0    # proportional gain on θ_l error
+    Kd: float = 3.0    # derivative gain  on ω_l error
 
 
 @dataclass
 class PIDGains:
-    Kp: float = 60.0    # proportional gain
-    Ki: float = 8.0     # integral gain
-    Kd: float = 15.0    # derivative gain
+    Kp: float = 10.0    # proportional gain
+    Ki: float = 1.0     # integral gain
+    Kd: float = 3.0    # derivative gain
     windup_limit: float = 50.0   # anti-windup clamp on integral state
 
 
