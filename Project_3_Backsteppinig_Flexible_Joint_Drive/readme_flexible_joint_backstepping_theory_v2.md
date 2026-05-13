@@ -16,8 +16,6 @@ The model includes three important effects:
 
 The key controlled output is the load angular position $\theta_l$, while the control input is the motor electromagnetic torque $u=\tau_m$. This makes the system non-collocated: the input acts on the motor side, but the desired output is located on the load side.
 
-> **Note:** GitHub renders LaTeX math in Markdown using `$...$` for inline and `$$...$$` for display math. All formulas in this document use this syntax and should render correctly on GitHub.
-
 ---
 
 ## 1. State-Space Model
@@ -27,7 +25,21 @@ The key controlled output is the load angular position $\theta_l$, while the con
 The state vector is chosen as
 
 $$
-x = \begin{bmatrix}\theta_l \\ \omega_l \\ \theta_m \\ \omega_m\end{bmatrix} = \begin{bmatrix} x_1 \\ x_2 \\ x_3 \\ x_4 \end{bmatrix} \in \mathbb{R}^4.
+x =
+\begin{bmatrix}
+\theta_l \\
+\omega_l \\
+\theta_m \\
+\omega_m
+\end{bmatrix}
+=
+\begin{bmatrix}
+x_1 \\
+x_2 \\
+x_3 \\
+x_4
+\end{bmatrix}
+\in \mathbb{R}^4.
 $$
 
 | State | Meaning | Units |
@@ -125,7 +137,13 @@ $$\dot{x} = f(x) + g\,u + d(t),$$
 where
 
 $$
-g = \begin{bmatrix}0 \\ 0 \\ 0 \\ 1/J_m\end{bmatrix}.
+g =
+\begin{bmatrix}
+0 \\
+0 \\
+0 \\
+1/J_m
+\end{bmatrix}.
 $$
 
 Therefore, the system is nonlinear in the state variables but affine in the input. The input appears linearly in the motor acceleration channel.

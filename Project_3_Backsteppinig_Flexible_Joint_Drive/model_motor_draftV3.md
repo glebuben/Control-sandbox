@@ -4,7 +4,18 @@
 
 **State vector:**
 
-$$x = \begin{bmatrix} \theta_l \\ \omega_l \\ \theta_m \\ \omega_m \end{bmatrix} \triangleq \begin{bmatrix} x_1 \\ x_2 \\ x_3 \\ x_4 \end{bmatrix} \in \mathbb{R}^4$$
+$$x = \begin{bmatrix}
+ \theta_l \\
+ \omega_l \\
+\theta_m \\ 
+\omega_m 
+\end{bmatrix} 
+\triangleq 
+\begin{bmatrix}
+x_1 \\ 
+x_2 \\ 
+x_3 \\ 
+x_4 \end{bmatrix} \in \mathbb{R}^4$$
 
 | Component | Physical Meaning | Units |
 |:---|:---|:---|

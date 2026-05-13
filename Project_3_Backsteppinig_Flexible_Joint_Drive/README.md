@@ -184,7 +184,10 @@ Full mathematical derivation: [model_motor_draftV3.md](model_motor_draftV3.md) Â
 
 **State & Control Vectors**
 
-$$s = \begin{bmatrix} \theta_l \\ \omega_l \\ \theta_m \\ \omega_m \end{bmatrix} \in \mathbb{R}^4$$
+$$s = \begin{bmatrix} \theta_l \\
+\omega_l \\ 
+\theta_m \\ 
+\omega_m \end{bmatrix} \in \mathbb{R}^4$$
 
 $$a = \tau_m  \in \mathbb{R}$$
 
