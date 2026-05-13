@@ -64,7 +64,7 @@ The `--scenario` flag selects what to simulate and which controllers to run.
 
 ### Plot flags
 
-Each flag produces one figure saved to `figures/` with the scenario name as a prefix.
+ Each flag produces one figure saved to `figures/` with the scenario name as a prefix.
 
 | Flag | Output file | Contents |
 |---|---|---|
