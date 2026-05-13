@@ -31,8 +31,7 @@ x =
 \omega_l \\
 \theta_m \\
 \omega_m
-\end{bmatrix}
-=
+\end{bmatrix} =
 \begin{bmatrix}
 x_1 \\
 x_2 \\
