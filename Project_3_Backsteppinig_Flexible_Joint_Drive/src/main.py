@@ -49,7 +49,7 @@ DEFAULT_SYS_PARAMS = SystemParams(
     Bv_l=0.05, Bv_m=0.03,
 )
 
-DEFAULT_GAINS    = ControllerGains(k1=5.0, k2=8.0, k3=10.0, k4=15.0)
+DEFAULT_GAINS    = ControllerGains(k1=5.0, k2=8.0, k3=25.0)
 STEP_REF_KWARGS  = dict(amplitude=1.0, t_rise=1.5, t_start=0.5)
 SIN_REF_KWARGS   = dict(amplitude=0.8, frequency=0.4)
 

@@ -25,56 +25,55 @@ from controller import (BacksteppingController, ControllerGains,
 
 def step_reference(t: float,
                    amplitude: float = 1.0,
-                   t_step: float = 0.5) -> tuple[float, float, float]:
+                   t_step: float = 0.5) -> tuple[float, float, float, float]:
     """Heaviside step; derivatives are zero (discontinuous – use for testing)."""
     theta = amplitude if t >= t_step else 0.0
-    return theta, 0.0, 0.0
+    return theta, 0.0, 0.0, 0.0
 
 
 def smooth_step_reference(t: float,
                            amplitude: float = 1.0,
                            t_rise: float    = 1.0,
-                           t_start: float   = 0.5) -> tuple[float, float, float]:
+                           t_start: float   = 0.5) -> tuple[float, float, float, float]:
     """
     Smooth sigmoid transition:  θ_d(t) = A·σ((t−t_start)·8/t_rise)
     where σ is the logistic function.  Provides C^∞ reference with
-    bounded second derivative.
+    bounded third derivative.
     """
     s      = (t - t_start) * 8.0 / t_rise
     sigma  = 1.0 / (1.0 + np.exp(-s))
-    theta  = amplitude * sigma
+    q      = sigma * (1.0 - sigma)          # σ' / ds_dt
 
-    ds_dt   = 8.0 / t_rise
-    dsigma  = sigma * (1.0 - sigma)
-    dtheta  = amplitude * dsigma * ds_dt
-    ddtheta = amplitude * dsigma * (1.0 - 2.0 * sigma) * ds_dt**2
-    return theta, dtheta, ddtheta
+    ds     = 8.0 / t_rise
+    theta   = amplitude * sigma
+    dtheta  = amplitude * q * ds
+    ddtheta = amplitude * q * (1.0 - 2.0 * sigma) * ds**2
+    # third derivative: d/dt[ddtheta] = A·ds³·q·(1 - 6σ(1-σ))·... 
+    # = A·ds³·(q - 6q²)(1-2σ) ... derive cleanly:
+    # Let p = σ(1-σ), then dp/dt = p(1-2σ)ds
+    # ddtheta = A·ds²·p·(1-2σ)
+    # dddtheta = A·ds³·[p(1-2σ)² + p·(-2)·(1-2σ)²... ]
+    # Full result: A·ds³·p·(1 - 6p)
+    dddtheta = amplitude * q * (1.0 - 6.0 * q) * ds**3
+    return theta, dtheta, ddtheta, dddtheta
 
 
 def equilibrium_reference(t: float,
-                          setpoint: float = 1.0) -> tuple[float, float, float]:
-    """
-    Constant setpoint reference — zero velocity and acceleration.
-
-    This is the scenario covered by the Lyapunov stability proof:
-    the system is initialised away from the equilibrium and the
-    controller must drive all states to (θ_l, ω_l, θ_m, ω_m) → (θ*, 0, θ*, 0).
-    Because θ̇_d = θ̈_d = 0 the error coordinates are time-invariant and
-    the Lyapunov function V is a genuine CLF — its decrease is guaranteed
-    by the design inequalities, not just along trajectories.
-    """
-    return setpoint, 0.0, 0.0
+                          setpoint: float = 1.0) -> tuple[float, float, float, float]:
+    """Constant setpoint reference — all derivatives zero."""
+    return setpoint, 0.0, 0.0, 0.0
 
 
 def sinusoidal_reference(t: float,
                           amplitude: float = 1.0,
-                          frequency: float = 0.5) -> tuple[float, float, float]:
-    """Sinusoidal tracking reference."""
-    omega  = 2.0 * np.pi * frequency
-    theta  = amplitude * np.sin(omega * t)
-    dtheta = amplitude * omega * np.cos(omega * t)
-    ddtheta = -amplitude * omega**2 * np.sin(omega * t)
-    return theta, dtheta, ddtheta
+                          frequency: float = 0.5) -> tuple[float, float, float, float]:
+    """Sinusoidal tracking reference including third derivative."""
+    omega   = 2.0 * np.pi * frequency
+    theta   =  amplitude * np.sin(omega * t)
+    dtheta  =  amplitude * omega       * np.cos(omega * t)
+    ddtheta = -amplitude * omega**2    * np.sin(omega * t)
+    dddtheta= -amplitude * omega**3    * np.cos(omega * t)
+    return theta, dtheta, ddtheta, dddtheta
 
 
 # ──────────────────────────────────────────────────────────────────────
@@ -189,9 +188,9 @@ def run_simulation(
     x_hist[0] = x_cur
 
     for i, t in enumerate(t_eval):
-        theta_d, dtheta_d, ddtheta_d = ref_fn(t, **ref_kw)
+        theta_d, dtheta_d, ddtheta_d, dddtheta_d = ref_fn(t, **ref_kw)
 
-        u_raw = ctrl.compute(t, x_cur, theta_d, dtheta_d, ddtheta_d)
+        u_raw = ctrl.compute(t, x_cur, theta_d, dtheta_d, ddtheta_d, dddtheta_d)
         u     = float(np.clip(u_raw, -u_clip, u_clip))
 
         # Log
@@ -199,7 +198,7 @@ def run_simulation(
         u_hist[i]    = u
         td_hist[i]   = theta_d
         dtd_hist[i]  = dtheta_d
-        lya_hist[i]  = ctrl.lyapunov_value(x_cur, theta_d, dtheta_d)
+        lya_hist[i]  = ctrl.lyapunov_value(x_cur, theta_d, dtheta_d, ddtheta_d)
         e1_hist[i]   = e1
         e2_hist[i]   = e2
         e3_hist[i]   = e3

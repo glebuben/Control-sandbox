@@ -34,10 +34,9 @@ from system import FlexibleJointSystem, SystemParams
 @dataclass
 class ControllerGains:
     """Backstepping gain set."""
-    k1: float = 5.0    # position-error damping
-    k2: float = 8.0    # load-velocity error damping
-    k3: float = 10.0   # coupling-torque error damping
-    k4: float = 15.0   # motor-torque synthesis gain
+    k1: float = 5.0    # c₁ — position-error damping
+    k2: float = 8.0    # c₂ — load-velocity error damping
+    k3: float = 25.0   # c₃ — coupling-torque error damping
 
 
 class BacksteppingController:
@@ -78,21 +77,25 @@ class BacksteppingController:
     # ------------------------------------------------------------------
 
     def compute(self,
-                t:       float,
-                x:       np.ndarray,
-                theta_d: float,
-                dtheta_d: float  = 0.0,
-                ddtheta_d: float = 0.0) -> float:
+                t:          float,
+                x:          np.ndarray,
+                theta_d:    float,
+                dtheta_d:   float = 0.0,
+                ddtheta_d:  float = 0.0,
+                dddtheta_d: float = 0.0) -> float:
         """
         Compute motor torque command u.
 
         Parameters
         ----------
-        t           : current time   [s]
-        x           : state [θ_l, ω_l, θ_m, ω_m]
-        theta_d     : desired load angle     [rad]
-        dtheta_d    : desired load velocity  [rad/s]
-        ddtheta_d   : desired load accel.    [rad/s²]
+        t            : current time   [s]
+        x            : state [θ_l, ω_l, θ_m, ω_m]
+        theta_d      : desired load angle           [rad]
+        dtheta_d     : desired load velocity        [rad/s]
+        ddtheta_d    : desired load acceleration    [rad/s²]
+        dddtheta_d   : desired load jerk            [rad/s³]
+                       Required for exact feedforward in dalpha2_dt.
+                       Defaults to 0 (exact only for equilibrium reference).
 
         Returns
         -------
@@ -110,8 +113,7 @@ class BacksteppingController:
         Tfl   = self.sys.friction_torque_load(omega_l)
         Tfm   = self.sys.friction_torque_motor(omega_m)
 
-        # Friction Jacobians (∂T_f/∂ω) – needed for virtual-control
-        # differentiation in later steps
+        # Friction Jacobians (∂T_f/∂ω)
         dTfl_domega_l = (p.Fc_l / p.v_s * (1.0 / np.cosh(omega_l / p.v_s))**2
                          + p.Bv_l)
         dTfm_domega_m = (p.Fc_m / p.v_s * (1.0 / np.cosh(omega_m / p.v_s))**2
@@ -119,50 +121,34 @@ class BacksteppingController:
 
         # ── STEP 1 – position error ───────────────────────────────────
         e1 = theta_l - theta_d
-        # Virtual control: desired load velocity
         alpha1     = dtheta_d - g.k1 * e1
-        dalpha1_dt = (ddtheta_d
-                      - g.k1 * (omega_l - dtheta_d))   # ∂α₁/∂t + (∂α₁/∂θ_l)·ẋ₁
+        # α̇₁ = θ̈_d - c₁(ω_l - θ̇_d)
+        dalpha1_dt = ddtheta_d - g.k1 * (omega_l - dtheta_d)
+        # α̈₁ = θ⃛_d - c₁(ω̇_l - θ̈_d)   — requires dddtheta_d and ω̇_l
+        omega_l_dot  = (tau_c - Tfl) / p.J_l          # ẋ₂
+        ddalpha1_dt  = dddtheta_d - g.k1 * (omega_l_dot - ddtheta_d)
 
         # ── STEP 2 – load-velocity error ─────────────────────────────
         e2 = omega_l - alpha1
-        # Desired coupling torque to drive e₂ → 0
-        #   ė₂ = ω̇_l − α̇₁ = (1/J_l)(τ_c − T_{f,l}) − α̇₁
-        #   choose τ_c* such that ė₂ = −k₂·e₂ − e₁   (cross-term for Lyapunov)
-        alpha2 = (p.J_l * (dalpha1_dt - g.k2 * e2 - e1)
-                  + Tfl)
+        alpha2 = (p.J_l * (dalpha1_dt - g.k2 * e2 - e1) + Tfl)
 
-        # Time derivative of α₂ (needed for step 3/4 virtual-control diff.)
-        # ∂α₂/∂t evaluated along trajectories:
-        #   dα₂/dt = J_l·[d(dalpha1_dt)/dt − k₂·(ω̇_l − α̇₁)] + dT_{f,l}/dt
-        omega_l_dot = (tau_c - Tfl) / p.J_l          # ẋ₂ (using current τ_c)
-        dalpha2_dt  = (p.J_l * (
-                          # second derivative of reference is treated as 0 here;
-                          # full feed-forward would require θ⃛_d
-                          - g.k2 * (omega_l_dot - dalpha1_dt)
-                          - (omega_l - dtheta_d)  # de₁/dt
-                      )
+        # α̇₂ = J_l·(α̈₁ - c₂·ė₂ - ė₁) + (∂T_{f,l}/∂ω_l)·ω̇_l
+        # ė₁ = ω_l - θ̇_d
+        # ė₂ = ω̇_l - α̇₁
+        de1_dt     = omega_l - dtheta_d
+        de2_dt     = omega_l_dot - dalpha1_dt
+        dalpha2_dt = (p.J_l * (ddalpha1_dt - g.k2 * de2_dt - de1_dt)
                       + dTfl_domega_l * omega_l_dot)
 
         # ── STEP 3 – coupling-torque error ───────────────────────────
         e3 = tau_c - alpha2
 
-        # τ̇_c = k·ν̇ + 3k₃·δ²·ν̇ + b·(ω̇_m − ω̇_l) + k·ν + 3k₃·δ²·ν
-        #      = (k + 3k₃δ²)(ω_m − ω_l)' + b·(ω̇_m − ω̇_l)
-        # Let κ(δ) = k + 3k₃δ²  (incremental stiffness)
         kappa = p.k + 3.0 * p.k3 * delta**2
-
-        # Φ(x) = known nonlinear terms in τ̇_c not involving u
-        # τ̇_c = (b/J_m)·u + Φ(x)  where
-        # Φ = kappa·nu + b·[(−tau_c − Tfm)/J_m − (tau_c − Tfl)/J_l]
         Phi = (kappa * nu
                + p.b * ((-tau_c - Tfm) / p.J_m
                          - (tau_c - Tfl) / p.J_l))
 
-        # Desired u to stabilise e₃:
-        #   ė₃ = τ̇_c − α̇₂ = (b/J_m)u + Φ − α̇₂
-        #   set ė₃ = −k₃·e₃ − e₂
-        u = (p.J_m / p.b) * (dalpha2_dt - Phi - g.k3 * e3 - e2 - g.k4 * e3)
+        u = (p.J_m / p.b) * (dalpha2_dt - Phi - g.k3 * e3 - e2 / p.J_l)
 
         # ── Store for introspection ───────────────────────────────────
         self._e1 = e1
@@ -170,7 +156,7 @@ class BacksteppingController:
         self._e3 = e3
         self._alpha1 = alpha1
         self._alpha2 = alpha2
-        self._lyapunov = self.lyapunov_value(x, theta_d, dtheta_d)
+        self._lyapunov = self.lyapunov_value(x, theta_d, dtheta_d, ddtheta_d)
 
         return float(u)
 
@@ -181,27 +167,28 @@ class BacksteppingController:
     def lyapunov_value(self,
                        x: np.ndarray,
                        theta_d: float,
-                       dtheta_d: float = 0.0) -> float:
+                       dtheta_d: float = 0.0,
+                       ddtheta_d: float = 0.0) -> float:
         """
-        Composite Lyapunov function for the backstepping design:
+        Composite Lyapunov function V = ½z₁² + ½z₂² + ½z₃²
 
-            V = ½e₁² + ½e₂² + ½e₃²
-
-        where errors are computed at current (x, θ_d, θ̇_d).
-        (Higher-order cross terms are neglected for a clean scalar V.)
+        Uses the same alpha1, alpha2 expressions as compute() so that
+        the reported V is exactly the Lyapunov function being decreased
+        by the control law.  Requires ddtheta_d to evaluate dalpha1_dt
+        correctly for time-varying references.
         """
         g  = self.gains
         p  = self.sys.p
 
-        e1 = x[0] - theta_d
+        e1     = x[0] - theta_d
         alpha1 = dtheta_d - g.k1 * e1
-        e2 = x[1] - alpha1
+        e2     = x[1] - alpha1
 
-        tau_c = self.sys.coupling_torque(x)
-        Tfl   = self.sys.friction_torque_load(x[1])
-        dalpha1_dt = -g.k1 * (x[1] - dtheta_d)
-        alpha2 = p.J_l * (dalpha1_dt - g.k2 * e2 - e1) + Tfl
-        e3 = tau_c - alpha2
+        tau_c      = self.sys.coupling_torque(x)
+        Tfl        = self.sys.friction_torque_load(x[1])
+        dalpha1_dt = ddtheta_d - g.k1 * (x[1] - dtheta_d)   # correct: includes θ̈_d
+        alpha2     = p.J_l * (dalpha1_dt - g.k2 * e2 - e1) + Tfl
+        e3         = tau_c - alpha2
 
         return 0.5 * e1**2 + 0.5 * e2**2 + 0.5 * e3**2
 
@@ -247,14 +234,14 @@ class BacksteppingController:
 @dataclass
 class PDGains:
     Kp: float = 10.0    # proportional gain on θ_l error
-    Kd: float = 3.0    # derivative gain  on ω_l error
+    Kd: float = 3.0     # derivative gain  on ω_l error
 
 
 @dataclass
 class PIDGains:
     Kp: float = 10.0    # proportional gain
     Ki: float = 1.0     # integral gain
-    Kd: float = 3.0    # derivative gain
+    Kd: float = 3.0     # derivative gain
     windup_limit: float = 50.0   # anti-windup clamp on integral state
 
 
@@ -279,11 +266,12 @@ class PDController:
         self._e3: float = 0.0
 
     def compute(self,
-                t:        float,
-                x:        np.ndarray,
-                theta_d:  float,
-                dtheta_d: float  = 0.0,
-                ddtheta_d: float = 0.0) -> float:
+                t:          float,
+                x:          np.ndarray,
+                theta_d:    float,
+                dtheta_d:   float = 0.0,
+                ddtheta_d:  float = 0.0,
+                dddtheta_d: float = 0.0) -> float:
         g = self.gains
         e  = x[0] - theta_d          # position error
         de = x[1] - dtheta_d         # velocity error
@@ -295,7 +283,7 @@ class PDController:
         self._e3 = 0.0
         return float(u)
 
-    def lyapunov_value(self, x, theta_d, dtheta_d=0.0) -> float:
+    def lyapunov_value(self, x, theta_d, dtheta_d=0.0, ddtheta_d=0.0) -> float:
         """Use ½e₁² as a stand-in Lyapunov proxy for comparison plots."""
         return 0.5 * (x[0] - theta_d) ** 2
 
@@ -336,11 +324,12 @@ class PIDController:
         self._prev_t = None
 
     def compute(self,
-                t:         float,
-                x:         np.ndarray,
-                theta_d:   float,
-                dtheta_d:  float  = 0.0,
-                ddtheta_d: float  = 0.0) -> float:
+                t:          float,
+                x:          np.ndarray,
+                theta_d:    float,
+                dtheta_d:   float = 0.0,
+                ddtheta_d:  float = 0.0,
+                dddtheta_d: float = 0.0) -> float:
         g  = self.gains
         e  = x[0] - theta_d
         de = x[1] - dtheta_d
@@ -361,7 +350,7 @@ class PIDController:
         self._e3 = self._i_err
         return float(u)
 
-    def lyapunov_value(self, x, theta_d, dtheta_d=0.0) -> float:
+    def lyapunov_value(self, x, theta_d, dtheta_d=0.0, ddtheta_d=0.0) -> float:
         """Use ½e₁² as a stand-in Lyapunov proxy for comparison plots."""
         return 0.5 * (x[0] - theta_d) ** 2
 
