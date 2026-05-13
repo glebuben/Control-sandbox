@@ -122,7 +122,7 @@ $$\dot{x} = f(x) + g\,u + d(t),$$
 
 where
 
-$$g = \begin{bmatrix}0 \\ 0 \\ 0 \\ 1/J_m\end{bmatrix}.$$
+$$g = \begin{bmatrix}0 \\ 0 \\ 0 \\ \frac{1}{J_m}\end{bmatrix}.$$
 
 Therefore, the system is nonlinear in the state variables but affine in the input. The input appears linearly in the motor acceleration channel.
 
