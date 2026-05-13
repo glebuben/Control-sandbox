@@ -26,7 +26,9 @@ The key controlled output is the load angular position $\theta_l$, while the con
 
 The state vector is chosen as
 
-$$x = \begin{bmatrix}\theta_l \\ \omega_l \\ \theta_m \\ \omega_m\end{bmatrix} = \begin{bmatrix} x_1 \\ x_2 \\ x_3 \\ x_4 \end{bmatrix} \in \mathbb{R}^4.$$
+$$
+x = \begin{bmatrix}\theta_l \\ \omega_l \\ \theta_m \\ \omega_m\end{bmatrix} = \begin{bmatrix} x_1 \\ x_2 \\ x_3 \\ x_4 \end{bmatrix} \in \mathbb{R}^4.
+$$
 
 | State | Meaning | Units |
 |:---|:---|:---|
@@ -76,13 +78,13 @@ If $k_3 > 0$, the shaft stiffness increases with deflection. If $k_3 < 0$, the m
 
 The load-side and motor-side friction torques are modeled as
 
-$$T_{f,l}(\omega_l) = F_{c,l}\tanh\!\left(\frac{\omega_l}{v_{s,l}}\right) + B_{v,l}\,\omega_l,$$
+$$T_{f,l}(\omega_l) = F_{c,l}\tanh\left(\frac{\omega_l}{v_{s,l}}\right) + B_{v,l}\,\omega_l,$$
 
-$$T_{f,m}(\omega_m) = F_{c,m}\tanh\!\left(\frac{\omega_m}{v_{s,m}}\right) + B_{v,m}\,\omega_m.$$
+$$T_{f,m}(\omega_m) = F_{c,m}\tanh\left(\frac{\omega_m}{v_{s,m}}\right) + B_{v,m}\,\omega_m.$$
 
 For a generic angular velocity $\omega$, the friction model is
 
-$$T_f(\omega) = F_c\tanh\!\left(\frac{\omega}{v_s}\right) + B_v\,\omega.$$
+$$T_f(\omega) = F_c\tanh\left(\frac{\omega}{v_s}\right) + B_v\,\omega.$$
 
 | Symbol | Meaning | Units |
 |:---|:---|:---|
@@ -110,11 +112,11 @@ Then the state-space model is
 
 $$\dot{x}_1 = x_2,$$
 
-$$\dot{x}_2 = \frac{1}{J_l}\!\left[k(x_3 - x_1) + k_3(x_3 - x_1)^3 + b(x_4 - x_2) - T_{f,l}(x_2)\right] + d_l(t),$$
+$$\dot{x}_2 = \frac{1}{J_l}\left[k(x_3 - x_1) + k_3(x_3 - x_1)^3 + b(x_4 - x_2) - T_{f,l}(x_2)\right] + d_l(t),$$
 
 $$\dot{x}_3 = x_4,$$
 
-$$\dot{x}_4 = \frac{1}{J_m}\!\left[u - k(x_3 - x_1) - k_3(x_3 - x_1)^3 - b(x_4 - x_2) - T_{f,m}(x_4)\right] + d_m(t).$$
+$$\dot{x}_4 = \frac{1}{J_m}\left[u - k(x_3 - x_1) - k_3(x_3 - x_1)^3 - b(x_4 - x_2) - T_{f,m}(x_4)\right] + d_m(t).$$
 
 Equivalently,
 
@@ -122,7 +124,9 @@ $$\dot{x} = f(x) + g\,u + d(t),$$
 
 where
 
-$$g = \begin{bmatrix}0 \\ 0 \\ 0 \\ \frac{1}{J_m}\end{bmatrix}.$$
+$$
+g = \begin{bmatrix}0 \\ 0 \\ 0 \\ 1/J_m\end{bmatrix}.
+$$
 
 Therefore, the system is nonlinear in the state variables but affine in the input. The input appears linearly in the motor acceleration channel.
 
@@ -182,7 +186,7 @@ The difficulty is that $\mathrm{sign}(\omega)$ is discontinuous at $\omega = 0$.
 
 Instead, we use
 
-$$T_f(\omega) = F_c\tanh\!\left(\frac{\omega}{v_s}\right) + B_v\,\omega.$$
+$$T_f(\omega) = F_c\tanh\left(\frac{\omega}{v_s}\right) + B_v\,\omega.$$
 
 Since
 
@@ -200,11 +204,11 @@ $\tanh(\omega/v_s)$ behaves like a smooth version of $\mathrm{sign}(\omega)$.
 
 The function $\tanh(z)$ is analytic for all real $z$. Therefore, $\tanh(\omega/v_s)$ is smooth for every $v_s > 0$. Its derivative is
 
-$$\frac{d}{d\omega}\tanh\!\left(\frac{\omega}{v_s}\right) = \frac{1}{v_s}\mathrm{sech}^2\!\left(\frac{\omega}{v_s}\right).$$
+$$\frac{d}{d\omega}\tanh\left(\frac{\omega}{v_s}\right) = \frac{1}{v_s}\mathrm{sech}^2\left(\frac{\omega}{v_s}\right).$$
 
 Therefore,
 
-$$\frac{dT_f}{d\omega} = \frac{F_c}{v_s}\mathrm{sech}^2\!\left(\frac{\omega}{v_s}\right) + B_v.$$
+$$\frac{dT_f}{d\omega} = \frac{F_c}{v_s}\mathrm{sech}^2\left(\frac{\omega}{v_s}\right) + B_v.$$
 
 Since $\mathrm{sech}^2(z)$ is continuous and bounded, $T_f(\omega)$ is continuously differentiable. In fact, because $\tanh(z)$ is analytic, $T_f \in C^\infty$.
 
@@ -220,11 +224,11 @@ $$F_c \ge 0, \qquad B_v \ge 0, \qquad v_s > 0.$$
 
 Then for every $\omega$,
 
-$$\omega\,T_f(\omega) = F_c\,\omega\tanh\!\left(\frac{\omega}{v_s}\right) + B_v\,\omega^2.$$
+$$\omega\,T_f(\omega) = F_c\,\omega\tanh\left(\frac{\omega}{v_s}\right) + B_v\,\omega^2.$$
 
 The function $\tanh(z)$ has the same sign as $z$. Therefore, $\omega$ and $\tanh(\omega/v_s)$ have the same sign. Hence,
 
-$$\omega\tanh\!\left(\frac{\omega}{v_s}\right) \ge 0.$$
+$$\omega\tanh\left(\frac{\omega}{v_s}\right) \ge 0.$$
 
 Also, $B_v\omega^2 \ge 0$. Thus,
 
@@ -330,7 +334,21 @@ $$\beta_l = \frac{F_{c,l}}{v_{s,l}} + B_{v,l}, \qquad \beta_m = \frac{F_{c,m}}{v
 
 The small-signal linearized model has the form $\dot{x} = Ax + Bu$, where
 
-$$A = \begin{bmatrix} 0 & 1 & 0 & 0 \\ -\dfrac{k}{J_l} & -\dfrac{b+\beta_l}{J_l} & \dfrac{k}{J_l} & \dfrac{b}{J_l} \\[6pt] 0 & 0 & 0 & 1 \\ \dfrac{k}{J_m} & \dfrac{b}{J_m} & -\dfrac{k}{J_m} & -\dfrac{b+\beta_m}{J_m} \end{bmatrix}, \qquad B = \begin{bmatrix} 0 \\ 0 \\ 0 \\ \dfrac{1}{J_m} \end{bmatrix}.$$
+$$
+A = \begin{bmatrix}
+0 & 1 & 0 & 0 \\
+-\dfrac{k}{J_l} & -\dfrac{b+\beta_l}{J_l} & \dfrac{k}{J_l} & \dfrac{b}{J_l} \\
+0 & 0 & 0 & 1 \\
+\dfrac{k}{J_m} & \dfrac{b}{J_m} & -\dfrac{k}{J_m} & -\dfrac{b+\beta_m}{J_m}
+\end{bmatrix},
+\qquad
+B = \begin{bmatrix}
+0 \\
+0 \\
+0 \\
+\dfrac{1}{J_m}
+\end{bmatrix}.
+$$
 
 This linear model is valid only near the chosen equilibrium.
 
@@ -374,9 +392,9 @@ A clean way to handle this is to use the coupling torque $\tau_c$ as an intermed
 
 This section gives a nominal derivation without external disturbances. The nominal equations are
 
-$$\dot{x}_1 = x_2, \qquad \dot{x}_2 = \frac{1}{J_l}\!\left(\tau_c - T_{f,l}(x_2)\right),$$
+$$\dot{x}_1 = x_2, \qquad \dot{x}_2 = \frac{1}{J_l}\left(\tau_c - T_{f,l}(x_2)\right),$$
 
-$$\dot{x}_3 = x_4, \qquad \dot{x}_4 = \frac{1}{J_m}\!\left(u - \tau_c - T_{f,m}(x_4)\right).$$
+$$\dot{x}_3 = x_4, \qquad \dot{x}_4 = \frac{1}{J_m}\left(u - \tau_c - T_{f,m}(x_4)\right).$$
 
 ---
 
@@ -398,7 +416,7 @@ With $V_1 = \tfrac{1}{2}z_1^2$, we get $\dot{V}_1 = -c_1 z_1^2 + z_1 z_2$.
 
 If $\tau_c$ could be directly assigned, the stabilizing desired coupling torque is
 
-$$\tau_c^* = J_l\!\left(\dot{\alpha}_1 - c_2 z_2 - z_1\right) + T_{f,l}(x_2), \quad c_2 > 0.$$
+$$\tau_c^* = J_l\left(\dot{\alpha}_1 - c_2 z_2 - z_1\right) + T_{f,l}(x_2), \quad c_2 > 0.$$
 
 Define the coupling torque error $z_3 = \tau_c - \tau_c^*$. Then
 
@@ -418,7 +436,7 @@ $$\dot{\tau}_c = \frac{b}{J_m}u + \Phi(x),$$
 
 where
 
-$$\Phi(x) = (k + 3k_3\delta^2)\nu - b\!\left(\frac{1}{J_m} + \frac{1}{J_l}\right)\tau_c - \frac{b}{J_m}T_{f,m}(x_4) + \frac{b}{J_l}T_{f,l}(x_2).$$
+$$\Phi(x) = (k + 3k_3\delta^2)\nu - b\left(\frac{1}{J_m} + \frac{1}{J_l}\right)\tau_c - \frac{b}{J_m}T_{f,m}(x_4) + \frac{b}{J_l}T_{f,l}(x_2).$$
 
 Since $b > 0$, the motor torque $u$ appears directly in $\dot{\tau}_c$.
 
@@ -428,7 +446,7 @@ Since $b > 0$, the motor torque $u$ appears directly in $\dot{\tau}_c$.
 
 Choose
 
-$$u = \frac{J_m}{b}\!\left[-\Phi(x) + \dot{\tau}_c^* - c_3 z_3 - \frac{1}{J_l}z_2\right], \quad c_3 > 0.$$
+$$u = \frac{J_m}{b}\left[-\Phi(x) + \dot{\tau}_c^* - c_3 z_3 - \frac{1}{J_l}z_2\right], \quad c_3 > 0.$$
 
 Then $\dot{z}_3 = -c_3 z_3 - \tfrac{1}{J_l}z_2$.
 
@@ -484,7 +502,7 @@ $$\dot{z}_1 = -c_1 z_1 + z_2,$$
 
 $$\dot{z}_2 = -c_2 z_2 - z_1 + \frac{1}{J_l}z_3 + d_l(t),$$
 
-$$\dot{z}_3 = -c_3 z_3 - \frac{1}{J_l}z_2 + b\!\left(d_m(t) - d_l(t)\right).$$
+$$\dot{z}_3 = -c_3 z_3 - \frac{1}{J_l}z_2 + b\left(d_m(t) - d_l(t)\right).$$
 
 If $d_l$ and $d_m$ are bounded, the disturbance terms can be bounded by Young's inequality, and the tracking error system is **input-to-state stable** with respect to the disturbances. Larger gains $c_1, c_2, c_3$ reduce the ultimate error bound.
 
@@ -578,7 +596,7 @@ $$\dot{\tau}_c = \frac{bK_t}{J_m}i + \Phi(x),$$
 
 where $\Phi(x)$ is defined as before. Choose the current control law:
 
-$$i = \frac{J_m}{bK_t}\!\left[-\Phi(x) + \dot{\tau}_c^* - c_3 z_3 - \frac{1}{J_l}z_2\right].$$
+$$i = \frac{J_m}{bK_t}\left[-\Phi(x) + \dot{\tau}_c^* - c_3 z_3 - \frac{1}{J_l}z_2\right].$$
 
 Then $\dot{z}_3 = -c_3 z_3 - \tfrac{1}{J_l}z_2$.
 
@@ -598,7 +616,7 @@ The tracking error dynamics are **exponentially stable** in the transformed coor
 
 Under the stated assumptions and for $c_1, c_2, c_3 > 0$, the current control law
 
-$$\boxed{i = \frac{J_m}{bK_t}\!\left[-\Phi(x) + \dot{\tau}_c^* - c_3 z_3 - \frac{1}{J_l}z_2\right]}$$
+$$\boxed{i = \frac{J_m}{bK_t}\left[-\Phi(x) + \dot{\tau}_c^* - c_3 z_3 - \frac{1}{J_l}z_2\right]}$$
 
 yields exponentially stable tracking error dynamics, and the load position $\theta_l$ asymptotically tracks the desired reference $\theta_d(t)$ in the nominal model.
 
