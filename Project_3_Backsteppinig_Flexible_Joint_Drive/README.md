@@ -16,7 +16,7 @@ The project includes a 4-DOF nonlinear plant model, nominal backstepping control
 
 The complete derivation of the nonlinear state-space model, possible implementation current-actuator mapping, energy passivity analysis, and recursive backstepping control law with stability proofs is provided in [model_motor_draftV3.md](model_motor_draftV3.md) and [readme_flexible_joint_backstepping_theory_v2.md](readme_flexible_joint_backstepping_theory_v2.md).
 
-## 1. Usage
+## 1. Project Instruction
 ### Requirements
 ```
 pip install numpy scipy matplotlib pygame Pillow
@@ -126,55 +126,8 @@ Run a quick sanity check (simulation only, no output):
 ```bash
 python main.py --scenario equilibrium
 ```
-
 ---
 
-### Tuning controller gains
-
-Gains are set as defaults in `controller.py` and can be overridden programmatically by importing the gain dataclasses:
-
-```python
-from controller import ControllerGains, PDGains, PIDGains
-from simulation import run_simulation
-
-# Backstepping
-r = run_simulation(
-    controller_type="backstepping",
-    ctrl_gains=ControllerGains(k1=5.0, k2=8.0, k3=10.0, k4=15.0),
-    reference="equilibrium",
-    ref_kwargs={"setpoint": 1.0},
-)
-
-# PD
-r = run_simulation(
-    controller_type="pd",
-    pd_gains=PDGains(Kp=10.0, Kd=3.0),
-    reference="equilibrium",
-    ref_kwargs={"setpoint": 1.0},
-)
-
-# PID
-r = run_simulation(
-    controller_type="pid",
-    pid_gains=PIDGains(Kp=10.0, Ki=1.0, Kd=3.0),
-    reference="equilibrium",
-    ref_kwargs={"setpoint": 1.0},
-)
-```
-
-Default gains used in this project:
-
-| Controller | Parameter | Value |
-|---|---|---|
-| Backstepping | $k_1$ | 5.0 |
-| | $k_2$ | 8.0 |
-| | $k_3$ | 10.0 |
-| | $k_4$ | 15.0 |
-| PD | $K_p$ | 10.0 |
-| | $K_d$ | 3.0 |
-| PID | $K_p$ | 10.0 |
-| | $K_i$ | 1.0 |
-| | $K_d$ | 3.0 |
 
 
 ## 2. System Description & Symbol Dictionary
@@ -335,6 +288,16 @@ Source: [model_motor_draftV3.md](model_motor_draftV3.md) §7, [readme_flexible_j
 | $\tau_{\text{peak}}$ | 7.2 | N·m | Motor torque limit |
 | $K_t$ | 0.5 | N·m/A | Motor torque constant |
 | $i_{\max}$ | 14.4 | A | Peak current limit ($\approx 7.2$ N·m) |
+
+Default gains used in this project:
+
+| Controller | Parameter | Value |
+|---|---|---|
+| PD | $K_p$ | 10.0 |
+| | $K_d$ | 3.0 |
+| PID | $K_p$ | 10.0 |
+| | $K_i$ | 1.0 |
+| | $K_d$ | 3.0 |
 
 **Controller Parameters**
 | Symbol | Value | Units | Meaning |
