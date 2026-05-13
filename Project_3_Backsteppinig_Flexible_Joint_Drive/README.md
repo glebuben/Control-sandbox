@@ -1,4 +1,4 @@
-# 🔌 Project 3 – Backstepping Control of a nonlinear Flexible-Joint Drive
+# Project 3 – Backstepping Control of a nonlinear Flexible-Joint Drive
 **A simulation of a nonlinear motor system with cubic torsional stiffness and smooth friction, controlled via a recursive Lyapunov-based backstepping law.**
 
 The project includes a 4-DOF nonlinear plant model, nominal backstepping controller, baseline comparison, static plots (time-series, phase portraits, Lyapunov function evolution), and an interactive `pygame` visualisation with GIF export.
@@ -341,30 +341,7 @@ Source: [model_motor_draftV3.md](model_motor_draftV3.md) §7, [readme_flexible_j
 | $\theta_d(t)$ | – | rad | Reference trajectory (step/sinusoid) |
 | $f_{\text{filter}}$ | 40 | Hz | Command filter cutoff for $\dot{\tau}_c^*$ |
 
-## 6. Additional interaction control
-Interactive Pygame Controls:
-| Key | Action | Key | Action |
-|-----|--------|-----|--------|
-| SPACE / → | Step forward | ← | Step backward |
-| R | Restart | A | Toggle auto-play |
-| PgUp / PgDown | Speed control | S / G | Save PNG / Export GIF |
-| Q / Esc | Quit | Click scrubber | Seek to time |
-
-The technical content is mostly sound but there are a few issues to address:
-
-1. **The Lyapunov claim is slightly overstated.** The brief oscillation at the start of V(t) means it is *not* strictly monotonically decreasing from t=0 — it decreases after a short transient. The theoretical guarantee holds asymptotically, not pointwise from the first sample. Claiming strict monotonicity when the plot visibly shows a dip-and-rise at t≈0 would invite criticism.
-
-2. **"command filtering" is not in your model.** Your system has torque saturation clipping, not a filter. Don't claim something you haven't implemented.
-
-3. **The discussion section undersells the result.** "The only visible advantage is convergence speed" is too weak — the tail plot shows persistent oscillation and failure to regulate, which is a qualitative difference, not just a speed difference.
-
-4. **Minor language issues** throughout — passive constructions, informal phrasing, missing articles.
-
-Here is a revised version:
-
----
-
-## 7. Results
+## 6. Results
 
 ### Backstepping
 
